@@ -1,0 +1,94 @@
+{
+  "entities": {
+    "Course": {
+      "title": "Course",
+      "description": "A teaching course managed by the freelance teacher.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "entity": { "type": "string" },
+        "modality": { "type": "string", "enum": ["presencial", "teleformación", "híbrido"] },
+        "location": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "totalHours": { "type": "number" },
+        "schedule": { "type": "string" },
+        "pricingType": { "type": "string", "enum": ["hourly", "total"] },
+        "price": { "type": "number" },
+        "status": { "type": "string", "enum": ["oferta recibida", "pendiente", "confirmado", "finalizado"] },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "entity", "startDate", "endDate", "totalHours", "price", "userId"]
+    },
+    "Session": {
+      "title": "Session",
+      "description": "A specific class session within a course.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "courseId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "content": { "type": "string" },
+        "status": { "type": "string", "enum": ["pendiente", "impartida"] },
+        "userId": { "type": "string" }
+      },
+      "required": ["courseId", "date", "startTime", "endTime", "userId"]
+    },
+    "Offer": {
+      "title": "Offer",
+      "description": "A course offer received from a training center.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entity": { "type": "string" },
+        "courseName": { "type": "string" },
+        "startDate": { "type": "string", "format": "date-time" },
+        "endDate": { "type": "string", "format": "date-time" },
+        "schedule": { "type": "string" },
+        "duration": { "type": "number" },
+        "remuneration": { "type": "number" },
+        "status": { "type": "string", "enum": ["oferta recibida", "evaluando", "aceptada", "rechazada"] },
+        "aiRecommendation": { "type": "string" },
+        "aiExplanation": { "type": "string" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entity", "courseName", "userId"]
+    },
+    "TeacherSettings": {
+      "title": "TeacherSettings",
+      "description": "Configuration and preferences for the teacher.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "maxHoursPerWeek": { "type": "number" },
+        "availableDays": { "type": "array", "items": { "type": "string" } },
+        "minHourlyRate": { "type": "number" },
+        "preferredModality": { "type": "string" }
+      },
+      "required": ["userId"]
+    }
+  },
+  "firestore": {
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Collection of courses."
+    },
+    "/sessions/{sessionId}": {
+      "schema": "Session",
+      "description": "Collection of sessions."
+    },
+    "/offers/{offerId}": {
+      "schema": "Offer",
+      "description": "Collection of course offers."
+    },
+    "/settings/{userId}": {
+      "schema": "TeacherSettings",
+      "description": "Teacher specific settings."
+    }
+  }
+}
