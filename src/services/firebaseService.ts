@@ -13,7 +13,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Course, Session, Offer, TeacherSettings } from '../types';
+import { Course, Session, TeacherSettings } from '../types';
 
 // Helper to handle Firestore errors as per guidelines
 enum OperationType {
@@ -101,34 +101,6 @@ export const deleteSession = async (id: string) => {
     await deleteDoc(doc(db, 'sessions', id));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, `sessions/${id}`);
-  }
-};
-
-// Offers
-export const subscribeToOffers = (userId: string, callback: (offers: Offer[]) => void) => {
-  const q = query(collection(db, 'offers'), where('userId', '==', userId), orderBy('createdAt', 'desc'));
-  return onSnapshot(q, (snapshot) => {
-    const offers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Offer));
-    callback(offers);
-  }, (error) => handleFirestoreError(error, OperationType.LIST, 'offers'));
-};
-
-export const addOffer = async (offer: Omit<Offer, 'id'>) => {
-  try {
-    return await addDoc(collection(db, 'offers'), {
-      ...offer,
-      createdAt: new Date().toISOString()
-    });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.CREATE, 'offers');
-  }
-};
-
-export const updateOffer = async (id: string, offer: Partial<Offer>) => {
-  try {
-    await updateDoc(doc(db, 'offers', id), offer);
-  } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, `offers/${id}`);
   }
 };
 

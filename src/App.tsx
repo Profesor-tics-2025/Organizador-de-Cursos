@@ -3,7 +3,7 @@ import {
   LayoutDashboard, 
   BookOpen, 
   Calendar as CalendarIcon, 
-  Briefcase, 
+  GraduationCap, 
   Settings as SettingsIcon, 
   LogOut, 
   Plus, 
@@ -32,13 +32,10 @@ import { auth } from './firebase';
 import { 
   subscribeToCourses, 
   subscribeToSessions, 
-  subscribeToOffers, 
   subscribeToSettings,
   addCourse,
   updateCourse,
   deleteCourse,
-  addOffer,
-  updateOffer,
   saveSettings,
   addSession,
   deleteSession
@@ -46,7 +43,6 @@ import {
 import { 
   Course, 
   Session, 
-  Offer, 
   TeacherSettings, 
   DashboardStats,
   Modality,
@@ -86,7 +82,7 @@ import {
 } from 'recharts';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { analyzeOffer, analyzeScheduleConflicts } from './services/geminiService';
+import { analyzeScheduleConflicts } from './services/geminiService';
 
 // Utility for tailwind classes
 function cn(...inputs: ClassValue[]) {
@@ -168,7 +164,6 @@ export default function App() {
   
   const [courses, setCourses] = useState<Course[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [offers, setOffers] = useState<Offer[]>([]);
   const [settings, setSettings] = useState<TeacherSettings | null>(null);
   const [scheduleAnalysis, setScheduleAnalysis] = useState<{ conflicts: { type: string, message: string, date: string, solution: string }[], summary: string } | null>(null);
   const [isAnalyzingSchedule, setIsAnalyzingSchedule] = useState(false);
@@ -188,7 +183,6 @@ export default function App() {
 
     const unsubCourses = subscribeToCourses(user.uid, setCourses);
     const unsubSessions = subscribeToSessions(user.uid, setSessions);
-    const unsubOffers = subscribeToOffers(user.uid, setOffers);
     const unsubSettings = subscribeToSettings(user.uid, (s) => {
       if (!s) {
         const defaultSettings: TeacherSettings = {
@@ -207,7 +201,6 @@ export default function App() {
     return () => {
       unsubCourses();
       unsubSessions();
-      unsubOffers();
       unsubSettings();
     };
   }, [user]);
@@ -226,7 +219,7 @@ export default function App() {
   const runScheduleAnalysis = async () => {
     setIsAnalyzingSchedule(true);
     try {
-      const result = await analyzeScheduleConflicts(courses, sessions, offers);
+      const result = await analyzeScheduleConflicts(courses, sessions);
       setScheduleAnalysis(result);
     } catch (error) {
       console.error("Analysis failed:", error);
@@ -334,11 +327,11 @@ export default function App() {
         <div className="w-full max-w-md p-8 bg-white rounded-3xl shadow-xl border border-slate-100 text-center">
           <div className="flex justify-center mb-6">
             <div className="p-4 bg-emerald-100 rounded-2xl">
-              <Briefcase className="w-12 h-12 text-emerald-600" />
+              <GraduationCap className="w-12 h-12 text-emerald-600" />
             </div>
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">DocentePro</h1>
-          <p className="text-slate-500 mb-8">Gestión profesional para docentes freelance. Organiza tus cursos, analiza ofertas y maximiza tus ingresos.</p>
+          <p className="text-slate-500 mb-8">Gestión profesional para docentes freelance. Organiza tus cursos, sesiones y maximiza tus ingresos.</p>
           <button
             onClick={handleLogin}
             className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-slate-900 text-white font-semibold rounded-2xl hover:bg-slate-800 transition-all shadow-lg hover:shadow-slate-200"
@@ -382,7 +375,7 @@ export default function App() {
       <aside className="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 hidden lg:flex flex-col">
         <div className="p-6 flex items-center gap-3">
           <div className="p-2 bg-emerald-600 rounded-lg">
-            <Briefcase className="w-6 h-6 text-white" />
+            <GraduationCap className="w-6 h-6 text-white" />
           </div>
           <span className="text-xl font-bold text-slate-900">DocentePro</span>
         </div>
@@ -391,7 +384,6 @@ export default function App() {
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
           <SidebarItem icon={BookOpen} label="Mis Cursos" active={activeTab === 'courses'} onClick={() => setActiveTab('courses')} />
           <SidebarItem icon={CalendarIcon} label="Calendario" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
-          <SidebarItem icon={Briefcase} label="Ofertas" active={activeTab === 'offers'} onClick={() => setActiveTab('offers')} />
           <SidebarItem icon={SettingsIcon} label="Configuración" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
         </nav>
 
@@ -421,14 +413,12 @@ export default function App() {
               {activeTab === 'dashboard' && 'Panel de Control'}
               {activeTab === 'courses' && 'Gestión de Cursos'}
               {activeTab === 'calendar' && 'Calendario Docente'}
-              {activeTab === 'offers' && 'Ofertas Recibidas'}
               {activeTab === 'settings' && 'Configuración'}
             </h2>
             <p className="text-slate-500">
               {activeTab === 'dashboard' && 'Bienvenido de nuevo, aquí tienes un resumen de tu actividad.'}
               {activeTab === 'courses' && 'Administra tus cursos actuales y finalizados.'}
               {activeTab === 'calendar' && 'Visualiza tu carga de trabajo y evita solapamientos.'}
-              {activeTab === 'offers' && 'Evalúa nuevas oportunidades con ayuda de IA.'}
               {activeTab === 'settings' && 'Personaliza tus preferencias y límites de trabajo.'}
             </p>
           </div>
@@ -453,14 +443,6 @@ export default function App() {
                 <Plus className="w-5 h-5" /> Nuevo Curso
               </button>
             )}
-            {activeTab === 'offers' && (
-              <button 
-                onClick={() => document.getElementById('add-offer-modal')?.classList.remove('hidden')}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 transition-colors shadow-sm"
-              >
-                <Plus className="w-5 h-5" /> Registrar Oferta
-              </button>
-            )}
           </div>
         </header>
 
@@ -468,13 +450,11 @@ export default function App() {
         {activeTab === 'dashboard' && <Dashboard stats={stats} courses={courses} sessions={sessions} onAnalyzeConflicts={runScheduleAnalysis} scheduleAnalysis={scheduleAnalysis} />}
         {activeTab === 'courses' && <CourseManagement courses={courses} sessions={sessions} userId={user.uid} />}
         {activeTab === 'calendar' && <Calendar sessions={sessions} courses={courses} />}
-        {activeTab === 'offers' && <OfferManagement offers={offers} courses={courses} sessions={sessions} settings={settings} userId={user.uid} />}
         {activeTab === 'settings' && <Settings settings={settings} userId={user.uid} />}
       </main>
 
       {/* Modals (Hidden by default) */}
-      <AddCourseModal userId={user.uid} />
-      <AddOfferModal userId={user.uid} />
+      <CourseFormModal userId={user.uid} />
       
       {/* Schedule Analysis Modal */}
       <div id="schedule-analysis-modal" className="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
@@ -645,12 +625,6 @@ function Dashboard({ stats, courses, sessions, onAnalyzeConflicts, scheduleAnaly
           >
             Añadir Nuevo Curso
           </button>
-          <button 
-            onClick={() => document.getElementById('add-offer-modal')?.classList.remove('hidden')}
-            className="flex-1 md:flex-none px-6 py-3 bg-emerald-500 text-white font-bold rounded-2xl hover:bg-emerald-400 transition-colors border border-emerald-400"
-          >
-            Registrar Oferta
-          </button>
         </div>
       </div>
 
@@ -722,25 +696,45 @@ function Dashboard({ stats, courses, sessions, onAnalyzeConflicts, scheduleAnaly
 
 function CourseManagement({ courses, sessions, userId }: { courses: Course[], sessions: Session[], userId: string }) {
   const [filter, setFilter] = useState<CourseStatus | 'todos'>('todos');
+  const [searchTerm, setSearchTerm] = useState('');
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [editingCourse, setEditingCourse] = useState<Course | null>(null);
+  const [viewingCourse, setViewingCourse] = useState<Course | null>(null);
 
-  const filteredCourses = courses.filter(c => filter === 'todos' || c.status === filter);
+  const filteredCourses = courses.filter(c => {
+    const matchesFilter = filter === 'todos' || c.status === filter;
+    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          c.entity.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesFilter && matchesSearch;
+  });
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4 overflow-x-auto pb-2">
-        {['todos', 'pendiente', 'confirmado', 'finalizado', 'oferta recibida'].map((s) => (
-          <button
-            key={s}
-            onClick={() => setFilter(s as any)}
-            className={cn(
-              "px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all",
-              filter === s ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
-            )}
-          >
-            {s.charAt(0).toUpperCase() + s.slice(1)}
-          </button>
-        ))}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4 overflow-x-auto pb-2 md:pb-0">
+          {['todos', 'pendiente', 'confirmado', 'finalizado'].map((s) => (
+            <button
+              key={s}
+              onClick={() => setFilter(s as any)}
+              className={cn(
+                "px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all",
+                filter === s ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
+              )}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div className="relative">
+          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input 
+            type="text" 
+            placeholder="Buscar curso o entidad..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 w-full md:w-64"
+          />
+        </div>
       </div>
 
       <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
@@ -772,8 +766,13 @@ function CourseManagement({ courses, sessions, userId }: { courses: Course[], se
               return (
                 <tr key={course.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="px-6 py-4">
-                    <p className="text-sm font-bold text-slate-900">{course.name}</p>
-                    <p className="text-xs text-slate-500">{course.modality} • {course.location}</p>
+                    <button 
+                      onClick={() => setViewingCourse(course)}
+                      className="text-left group/name"
+                    >
+                      <p className="text-sm font-bold text-slate-900 group-hover/name:text-emerald-600 transition-colors">{course.name}</p>
+                      <p className="text-xs text-slate-500">{course.modality} • {course.location}</p>
+                    </button>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">{course.entity}</td>
                   <td className="px-6 py-4 text-sm text-slate-600">
@@ -788,8 +787,7 @@ function CourseManagement({ courses, sessions, userId }: { courses: Course[], se
                       "px-2.5 py-1 text-xs font-bold rounded-full uppercase tracking-wider",
                       course.status === 'confirmado' && "bg-emerald-100 text-emerald-700",
                       course.status === 'finalizado' && "bg-blue-100 text-blue-700",
-                      course.status === 'pendiente' && "bg-amber-100 text-amber-700",
-                      course.status === 'oferta recibida' && "bg-slate-100 text-slate-700"
+                      course.status === 'pendiente' && "bg-amber-100 text-amber-700"
                     )}>
                       {course.status}
                     </span>
@@ -810,12 +808,34 @@ function CourseManagement({ courses, sessions, userId }: { courses: Course[], se
                     <button 
                       onClick={() => setSelectedCourse(course)}
                       className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Gestionar sesiones"
                     >
                       <Plus className="w-4 h-4" />
                     </button>
+                    {course.status === 'pendiente' && (
+                      <button 
+                        onClick={() => updateCourse(course.id!, { ...course, status: 'confirmado' })}
+                        className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                        title="Confirmar curso"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                      </button>
+                    )}
                     <button 
-                      onClick={() => deleteCourse(course.id!)}
+                      onClick={() => setEditingCourse(course)}
+                      className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                      title="Editar curso"
+                    >
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('¿Estás seguro de que deseas eliminar este curso?')) {
+                          deleteCourse(course.id!);
+                        }
+                      }}
                       className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      title="Eliminar curso"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -898,6 +918,124 @@ function CourseManagement({ courses, sessions, userId }: { courses: Course[], se
           </div>
         </div>
       )}
+
+      {/* Edit Course Modal */}
+      {editingCourse && (
+        <CourseFormModal 
+          userId={userId} 
+          course={editingCourse} 
+          onClose={() => setEditingCourse(null)} 
+        />
+      )}
+
+      {/* Course Detail Modal */}
+      {viewingCourse && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
+                  <BookOpen className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900">{viewingCourse.name}</h3>
+                  <p className="text-sm text-slate-500">{viewingCourse.entity}</p>
+                </div>
+              </div>
+              <button onClick={() => setViewingCourse(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                <X className="w-6 h-6 text-slate-400" />
+              </button>
+            </div>
+            <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Detalles Generales</h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <CalendarIcon className="w-4 h-4 text-slate-400" />
+                      <span>{format(parseISO(viewingCourse.startDate), 'PPP', { locale: es })} - {format(parseISO(viewingCourse.endDate), 'PPP', { locale: es })}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      <span>{viewingCourse.totalHours} horas totales • {viewingCourse.modality}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-sm text-slate-600">
+                      <Euro className="w-4 h-4 text-slate-400" />
+                      <span className="font-bold text-emerald-600">
+                        {viewingCourse.pricingType === 'hourly' 
+                          ? `${viewingCourse.price}€/h (Total: ${viewingCourse.price * viewingCourse.totalHours}€)` 
+                          : `${viewingCourse.price}€ (Total curso)`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Ubicación / Horario</h4>
+                  <p className="text-sm text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                    {viewingCourse.location} • {viewingCourse.schedule || 'Horario no especificado'}
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Estado del Curso</h4>
+                  <div className={cn(
+                    "inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold uppercase tracking-tight",
+                    viewingCourse.status === 'confirmado' && "bg-emerald-100 text-emerald-700",
+                    viewingCourse.status === 'finalizado' && "bg-blue-100 text-blue-700",
+                    viewingCourse.status === 'pendiente' && "bg-amber-100 text-amber-700"
+                  )}>
+                    <div className={cn(
+                      "w-2 h-2 rounded-full",
+                      viewingCourse.status === 'confirmado' && "bg-emerald-500",
+                      viewingCourse.status === 'finalizado' && "bg-blue-500",
+                      viewingCourse.status === 'pendiente' && "bg-amber-500"
+                    )}></div>
+                    {viewingCourse.status}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Resumen de Sesiones</h4>
+                  <div className="p-4 bg-slate-900 rounded-2xl text-white">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-slate-400 text-[10px] uppercase font-bold mb-1">Sesiones registradas</p>
+                        <p className="text-2xl font-bold">{sessions.filter(s => s.courseId === viewingCourse.id).length}</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setViewingCourse(null);
+                          setSelectedCourse(viewingCourse);
+                        }}
+                        className="text-xs font-bold text-emerald-400 hover:text-emerald-300 transition-colors"
+                      >
+                        Gestionar →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-between gap-3">
+              <button 
+                onClick={() => {
+                  setViewingCourse(null);
+                  setEditingCourse(viewingCourse);
+                }}
+                className="px-6 py-2 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-100 transition-colors flex items-center gap-2"
+              >
+                <Edit2 className="w-4 h-4" /> Editar
+              </button>
+              <button 
+                onClick={() => setViewingCourse(null)}
+                className="px-6 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -970,136 +1108,6 @@ function Calendar({ sessions, courses }: { sessions: Session[], courses: Course[
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function OfferManagement({ offers, courses, sessions, settings, userId }: { offers: Offer[], courses: Course[], sessions: Session[], settings: TeacherSettings | null, userId: string }) {
-  const [analyzing, setAnalyzing] = useState<string | null>(null);
-
-  const handleAnalyze = async (offer: Offer) => {
-    if (!settings) return;
-    setAnalyzing(offer.id!);
-    const result = await analyzeOffer(offer, courses, sessions, settings);
-    await updateOffer(offer.id!, {
-      aiRecommendation: result.recommendation,
-      aiExplanation: result.explanation,
-      status: 'evaluando'
-    });
-    setAnalyzing(null);
-  };
-
-  const handleAccept = async (offer: Offer) => {
-    // Convert offer to course
-    await addCourse({
-      name: offer.courseName,
-      entity: offer.entity,
-      modality: 'presencial', // default
-      location: 'Por definir',
-      startDate: offer.startDate,
-      endDate: offer.endDate,
-      totalHours: offer.duration,
-      schedule: offer.schedule,
-      pricingType: 'total',
-      price: offer.remuneration,
-      status: 'confirmado',
-      userId,
-      createdAt: new Date().toISOString()
-    });
-    await updateOffer(offer.id!, { status: 'aceptada' });
-  };
-
-  return (
-    <div className="grid grid-cols-1 gap-6">
-      {offers.map(offer => (
-        <div key={offer.id} className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col md:flex-row">
-          <div className="p-6 flex-1">
-            <div className="flex items-start justify-between mb-4">
-              <div>
-                <span className="text-xs font-bold text-emerald-600 uppercase tracking-widest">{offer.entity}</span>
-                <h3 className="text-xl font-bold text-slate-900 mt-1">{offer.courseName}</h3>
-              </div>
-              <span className={cn(
-                "px-3 py-1 text-xs font-bold rounded-full uppercase",
-                offer.status === 'oferta recibida' && "bg-slate-100 text-slate-600",
-                offer.status === 'evaluando' && "bg-blue-100 text-blue-600",
-                offer.status === 'aceptada' && "bg-emerald-100 text-emerald-600",
-                offer.status === 'rechazada' && "bg-red-100 text-red-600"
-              )}>
-                {offer.status}
-              </span>
-            </div>
-            
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-              <div className="flex items-center gap-2 text-slate-500">
-                <CalendarIcon className="w-4 h-4" />
-                <span className="text-sm">{format(parseISO(offer.startDate), 'dd/MM/yy')}</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-500">
-                <Clock className="w-4 h-4" />
-                <span className="text-sm">{offer.duration}h • {offer.schedule}</span>
-              </div>
-              <div className="flex items-center gap-2 text-emerald-600 font-bold">
-                <Euro className="w-4 h-4" />
-                <span className="text-sm">{offer.remuneration}€</span>
-              </div>
-            </div>
-
-            {offer.aiRecommendation && (
-              <div className={cn(
-                "p-4 rounded-2xl border mb-6",
-                offer.aiRecommendation === 'recomendable aceptar' ? "bg-emerald-50 border-emerald-100" :
-                offer.aiRecommendation === 'aceptable con ajustes' ? "bg-amber-50 border-amber-100" : "bg-red-50 border-red-100"
-              )}>
-                <div className="flex items-center gap-2 mb-2">
-                  <BrainCircuit className={cn("w-5 h-5", 
-                    offer.aiRecommendation === 'recomendable aceptar' ? "text-emerald-600" :
-                    offer.aiRecommendation === 'aceptable con ajustes' ? "text-amber-600" : "text-red-600"
-                  )} />
-                  <span className="text-sm font-bold uppercase tracking-tight">Análisis de IA: {offer.aiRecommendation}</span>
-                </div>
-                <p className="text-sm text-slate-700 leading-relaxed">{offer.aiExplanation}</p>
-              </div>
-            )}
-
-            <div className="flex gap-3">
-              {offer.status === 'oferta recibida' && (
-                <button 
-                  onClick={() => handleAnalyze(offer)}
-                  disabled={analyzing === offer.id}
-                  className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white text-sm font-bold rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50"
-                >
-                  {analyzing === offer.id ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <BrainCircuit className="w-4 h-4" />}
-                  Analizar con IA
-                </button>
-              )}
-              {offer.status !== 'aceptada' && offer.status !== 'rechazada' && (
-                <>
-                  <button 
-                    onClick={() => handleAccept(offer)}
-                    className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-all"
-                  >
-                    Aceptar Oferta
-                  </button>
-                  <button 
-                    onClick={() => updateOffer(offer.id!, { status: 'rechazada' })}
-                    className="px-4 py-2 border border-slate-200 text-slate-600 text-sm font-bold rounded-xl hover:bg-slate-50 transition-all"
-                  >
-                    Rechazar
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      ))}
-      {offers.length === 0 && (
-        <div className="p-20 text-center bg-white border border-slate-200 rounded-3xl">
-          <Briefcase className="w-16 h-16 text-slate-100 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-slate-900 mb-2">No hay ofertas registradas</h3>
-          <p className="text-slate-500">Registra las ofertas que recibes de centros para analizarlas.</p>
-        </div>
-      )}
     </div>
   );
 }
@@ -1198,83 +1206,187 @@ function Settings({ settings, userId }: { settings: TeacherSettings | null, user
 
 // --- Modals ---
 
-function AddCourseModal({ userId }: { userId: string }) {
+function CourseFormModal({ userId, course, onClose }: { userId: string, course?: Course | null, onClose?: () => void }) {
+  const [formData, setFormData] = useState<Partial<Course>>({
+    name: '',
+    entity: '',
+    modality: 'presencial',
+    location: '',
+    startDate: '',
+    endDate: '',
+    totalHours: 0,
+    pricingType: 'hourly',
+    price: 0,
+    status: 'pendiente'
+  });
+
+  useEffect(() => {
+    if (course) {
+      setFormData(course);
+    } else {
+      setFormData({
+        name: '',
+        entity: '',
+        modality: 'presencial',
+        location: '',
+        startDate: '',
+        endDate: '',
+        totalHours: 0,
+        pricingType: 'hourly',
+        price: 0,
+        status: 'pendiente'
+      });
+    }
+  }, [course]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
     
-    const startTime = formData.get('startTime') as string;
-    const endTime = formData.get('endTime') as string;
-    const schedule = startTime && endTime ? `${startTime} - ${endTime}` : '';
-
-    await addCourse({
-      name: formData.get('name') as string,
-      entity: formData.get('entity') as string,
-      modality: formData.get('modality') as Modality,
-      location: formData.get('location') as string,
-      startDate: formData.get('startDate') as string,
-      endDate: formData.get('endDate') as string,
-      totalHours: parseFloat(formData.get('totalHours') as string),
-      schedule,
-      pricingType: formData.get('pricingType') as PricingType,
-      price: parseInt(formData.get('price') as string),
-      status: 'pendiente',
+    const data = {
+      ...formData,
       userId,
-      createdAt: new Date().toISOString()
-    });
+      createdAt: course?.createdAt || new Date().toISOString()
+    } as Course;
+
+    if (course?.id) {
+      await updateCourse(course.id, data);
+    } else {
+      await addCourse(data);
+    }
     
-    form.reset();
-    document.getElementById('add-course-modal')?.classList.add('hidden');
+    if (onClose) {
+      onClose();
+    } else {
+      document.getElementById('add-course-modal')?.classList.add('hidden');
+    }
   };
 
+  const modalId = course ? `edit-course-modal-${course.id}` : 'add-course-modal';
+
   return (
-    <div id="add-course-modal" className="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+    <div id={modalId} className={cn(
+      "fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4",
+      !course && "hidden"
+    )}>
       <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
         <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-slate-900">Nuevo Curso</h3>
-          <button onClick={() => document.getElementById('add-course-modal')?.classList.add('hidden')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+          <h3 className="text-xl font-bold text-slate-900">{course ? 'Editar Curso' : 'Nuevo Curso'}</h3>
+          <button onClick={() => onClose ? onClose() : document.getElementById('add-course-modal')?.classList.add('hidden')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <X className="w-6 h-6 text-slate-400" />
           </button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <input name="name" placeholder="Nombre del curso" required className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-            <input name="entity" placeholder="Entidad / Centro" required className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-            <select name="modality" className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="presencial">Presencial</option>
-              <option value="teleformación">Teleformación</option>
-              <option value="híbrido">Híbrido</option>
-            </select>
-            <input name="location" placeholder="Ciudad / Plataforma" className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase">Nombre del curso</label>
+              <input 
+                value={formData.name} 
+                onChange={e => setFormData({...formData, name: e.target.value})}
+                placeholder="Ej: React Avanzado" 
+                required 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase">Entidad / Centro</label>
+              <input 
+                value={formData.entity} 
+                onChange={e => setFormData({...formData, entity: e.target.value})}
+                placeholder="Ej: Academia Tech" 
+                required 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase">Modalidad</label>
+              <select 
+                value={formData.modality} 
+                onChange={e => setFormData({...formData, modality: e.target.value as Modality})}
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="presencial">Presencial</option>
+                <option value="teleformación">Teleformación</option>
+                <option value="híbrido">Híbrido</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase">Ciudad / Plataforma</label>
+              <input 
+                value={formData.location} 
+                onChange={e => setFormData({...formData, location: e.target.value})}
+                placeholder="Ej: Madrid o Zoom" 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
+            </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase">Inicio</label>
-              <input type="date" name="startDate" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
+              <input 
+                type="date" 
+                value={formData.startDate} 
+                onChange={e => setFormData({...formData, startDate: e.target.value})}
+                required 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase">Fin</label>
-              <input type="date" name="endDate" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
+              <input 
+                type="date" 
+                value={formData.endDate} 
+                onChange={e => setFormData({...formData, endDate: e.target.value})}
+                required 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase">Total horas</label>
-              <input type="number" step="0.1" name="totalHours" placeholder="Total horas" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
+              <input 
+                type="number" 
+                step="0.1" 
+                value={formData.totalHours} 
+                onChange={e => setFormData({...formData, totalHours: parseFloat(e.target.value)})}
+                placeholder="Total horas" 
+                required 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase">Horario General</label>
-              <div className="flex items-center gap-2">
-                <input type="time" name="startTime" className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-                <span className="text-slate-400">-</span>
-                <input type="time" name="endTime" className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-              </div>
+              <label className="text-xs font-bold text-slate-400 uppercase">Estado</label>
+              <select 
+                value={formData.status} 
+                onChange={e => setFormData({...formData, status: e.target.value as CourseStatus})}
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="pendiente">Pendiente</option>
+                <option value="confirmado">Confirmado</option>
+                <option value="finalizado">Finalizado</option>
+              </select>
             </div>
-            <select name="pricingType" className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-              <option value="hourly">Precio por hora</option>
-              <option value="total">Precio total curso</option>
-            </select>
-            <input type="number" name="price" placeholder="Importe (€)" required className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase">Tipo de Precio</label>
+              <select 
+                value={formData.pricingType} 
+                onChange={e => setFormData({...formData, pricingType: e.target.value as PricingType})}
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="hourly">Precio por hora</option>
+                <option value="total">Precio total curso</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-slate-400 uppercase">Importe (€)</label>
+              <input 
+                type="number" 
+                value={formData.price} 
+                onChange={e => setFormData({...formData, price: parseInt(e.target.value)})}
+                placeholder="Importe (€)" 
+                required 
+                className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              />
+            </div>
           </div>
           <button type="submit" className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg">
-            Crear Curso
+            {course ? 'Guardar Cambios' : 'Crear Curso'}
           </button>
         </form>
       </div>
@@ -1282,72 +1394,4 @@ function AddCourseModal({ userId }: { userId: string }) {
   );
 }
 
-function AddOfferModal({ userId }: { userId: string }) {
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const form = e.target as HTMLFormElement;
-    const formData = new FormData(form);
-    
-    const startTime = formData.get('startTime') as string;
-    const endTime = formData.get('endTime') as string;
-    const schedule = startTime && endTime ? `${startTime} - ${endTime}` : '';
 
-    await addOffer({
-      entity: formData.get('entity') as string,
-      courseName: formData.get('courseName') as string,
-      startDate: formData.get('startDate') as string,
-      endDate: formData.get('endDate') as string,
-      schedule,
-      duration: parseFloat(formData.get('duration') as string),
-      remuneration: parseInt(formData.get('remuneration') as string),
-      status: 'oferta recibida',
-      userId,
-      createdAt: new Date().toISOString()
-    });
-    
-    form.reset();
-    document.getElementById('add-offer-modal')?.classList.add('hidden');
-  };
-
-  return (
-    <div id="add-offer-modal" className="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-      <div className="w-full max-w-xl bg-white rounded-3xl shadow-2xl overflow-hidden">
-        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-          <h3 className="text-xl font-bold text-slate-900">Registrar Oferta</h3>
-          <button onClick={() => document.getElementById('add-offer-modal')?.classList.add('hidden')} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-            <X className="w-6 h-6 text-slate-400" />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <input name="entity" placeholder="Entidad / Centro" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-          <input name="courseName" placeholder="Nombre del curso" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase">Inicio</label>
-              <input type="date" name="startDate" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-400 uppercase">Fin</label>
-              <input type="date" name="endDate" required className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-400 uppercase">Horario Previsto</label>
-            <div className="flex items-center gap-2">
-              <input type="time" name="startTime" className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-              <span className="text-slate-400">-</span>
-              <input type="time" name="endTime" className="flex-1 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <input type="number" step="0.1" name="duration" placeholder="Horas totales" required className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-            <input type="number" name="remuneration" placeholder="Remuneración (€)" required className="p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" />
-          </div>
-          <button type="submit" className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg">
-            Registrar Oferta
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}

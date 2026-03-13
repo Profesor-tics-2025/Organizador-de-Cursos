@@ -26,11 +26,6 @@ service cloud.firestore {
              data.userId == request.auth.uid;
     }
 
-    function isValidOffer(data) {
-      return data.entity is string && data.courseName is string &&
-             data.userId == request.auth.uid;
-    }
-
     function isValidSettings(data) {
       return data.userId == request.auth.uid;
     }
@@ -46,13 +41,6 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidSession(request.resource.data);
       allow update: if isDocOwner() && isValidSession(request.resource.data);
-      allow delete: if isDocOwner();
-    }
-
-    match /offers/{offerId} {
-      allow read: if isDocOwner();
-      allow create: if isAuthenticated() && isValidOffer(request.resource.data);
-      allow update: if isDocOwner() && isValidOffer(request.resource.data);
       allow delete: if isDocOwner();
     }
 

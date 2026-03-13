@@ -1,7 +1,6 @@
 export type Modality = 'presencial' | 'teleformación' | 'híbrido';
-export type CourseStatus = 'oferta recibida' | 'pendiente' | 'confirmado' | 'finalizado';
+export type CourseStatus = 'pendiente' | 'confirmado' | 'finalizado';
 export type SessionStatus = 'pendiente' | 'impartida';
-export type OfferStatus = 'oferta recibida' | 'evaluando' | 'aceptada' | 'rechazada';
 export type PricingType = 'hourly' | 'total';
 
 export interface Course {
@@ -30,22 +29,6 @@ export interface Session {
   content: string;
   status: SessionStatus;
   userId: string;
-}
-
-export interface Offer {
-  id?: string;
-  entity: string;
-  courseName: string;
-  startDate: string;
-  endDate: string;
-  schedule: string;
-  duration: number;
-  remuneration: number;
-  status: OfferStatus;
-  aiRecommendation?: 'recomendable aceptar' | 'aceptable con ajustes' | 'no recomendable';
-  aiExplanation?: string;
-  userId: string;
-  createdAt: string;
 }
 
 export interface TeacherSettings {
