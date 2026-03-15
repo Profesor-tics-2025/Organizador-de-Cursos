@@ -16,6 +16,7 @@ export interface Course {
   pricingType: PricingType;
   price: number;
   status: CourseStatus;
+  color?: string;
   userId: string;
   createdAt: string;
 }
@@ -47,4 +48,14 @@ export interface DashboardStats {
   incomeThisYear: number;
   activeCourses: number;
   overlaps: number;
+}
+
+export interface Client {
+  id?: string;
+  name: string;
+  cif: string;
+  address: string;
+  phone: string;
+  email: string;
+  userId: string;
 }

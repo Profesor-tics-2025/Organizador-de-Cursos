@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+@layer utilities {
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+    
+    body {
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+
+    @page {
+      size: A4;
+      margin: 10mm;
+    }
+  }
+}
+
+.a4-container {
+  width: 210mm;
+  min-height: 297mm;
+  padding: 10mm;
+  margin: 0 auto;
+  background: white;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+@media print {
+  .a4-container {
+    width: 100%;
+    min-height: auto;
+    padding: 0;
+    margin: 0;
+    box-shadow: none;
+  }
+}

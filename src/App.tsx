@@ -19,7 +19,12 @@ import {
   Trash2,
   Edit2,
   BrainCircuit,
-  X
+  X,
+  Share2,
+  ExternalLink,
+  FileText,
+  Printer,
+  Download
 } from 'lucide-react';
 import { 
   signInWithPopup, 
@@ -33,12 +38,16 @@ import {
   subscribeToCourses, 
   subscribeToSessions, 
   subscribeToSettings,
+  subscribeToClients,
   addCourse,
   updateCourse,
   deleteCourse,
   saveSettings,
   addSession,
-  deleteSession
+  deleteSession,
+  addClient,
+  updateClient,
+  deleteClient
 } from './services/firebaseService';
 import { 
   Course, 
@@ -47,7 +56,8 @@ import {
   DashboardStats,
   Modality,
   CourseStatus,
-  PricingType
+  PricingType,
+  Client
 } from './types';
 import { 
   format, 
@@ -89,6 +99,23 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// --- Constants ---
+
+const COURSE_COLORS = [
+  { name: 'Esmeralda', bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200', dot: 'bg-emerald-500' },
+  { name: 'Azul', bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200', dot: 'bg-blue-500' },
+  { name: 'Índigo', bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200', dot: 'bg-indigo-500' },
+  { name: 'Púrpura', bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200', dot: 'bg-purple-500' },
+  { name: 'Rosa', bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200', dot: 'bg-pink-500' },
+  { name: 'Naranja', bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200', dot: 'bg-orange-500' },
+  { name: 'Ámbar', bg: 'bg-amber-100', text: 'text-amber-700', border: 'border-amber-200', dot: 'bg-amber-500' },
+  { name: 'Cian', bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200', dot: 'bg-cyan-500' },
+];
+
+const getCourseColor = (colorName?: string) => {
+  return COURSE_COLORS.find(c => c.name === colorName) || COURSE_COLORS[0];
+};
+
 // --- Components ---
 // ... (rest of imports and components)
 
@@ -107,13 +134,15 @@ const SidebarItem = ({ icon: Icon, label, active, onClick }: { icon: any, label:
   </button>
 );
 
-const StatCard = ({ label, value, icon: Icon, trend, color, onClick }: { label: string, value: string | number, icon: any, trend?: string, color: string, onClick?: () => void }) => (
+const StatCard = ({ label, value, icon: Icon, trend, color, onClick, bgColor }: { label: string, value: string | number, icon: any, trend?: string, color: string, onClick?: () => void, bgColor?: string }) => (
   <div 
     onClick={onClick}
     className={cn(
-      "p-6 bg-white border rounded-2xl border-slate-200 shadow-sm",
-      onClick && "cursor-pointer hover:border-emerald-500 transition-all hover:shadow-md"
+      "p-6 border rounded-2xl border-slate-200 shadow-sm",
+      onClick && "cursor-pointer hover:border-emerald-500 transition-all hover:shadow-md",
+      !bgColor && "bg-white"
     )}
+    style={bgColor ? { backgroundColor: bgColor } : undefined}
   >
     <div className="flex items-start justify-between">
       <div>
@@ -160,13 +189,24 @@ function ClockDisplay() {
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'activity' | 'courses' | 'invoices' | 'calendar' | 'settings' | 'integrations'>('dashboard');
   
   const [courses, setCourses] = useState<Course[]>([]);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [settings, setSettings] = useState<TeacherSettings | null>(null);
   const [scheduleAnalysis, setScheduleAnalysis] = useState<{ conflicts: { type: string, message: string, date: string, solution: string }[], summary: string } | null>(null);
   const [isAnalyzingSchedule, setIsAnalyzingSchedule] = useState(false);
+  const [selectedInvoiceCourseId, setSelectedInvoiceCourseId] = useState<string>('');
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
+
+  const handleGoToEditor = () => {
+    setActiveTab('invoices');
+    setShowInvoicePreview(true);
+    if (!selectedInvoiceCourseId && courses.length > 0) {
+      setSelectedInvoiceCourseId(courses[0].id || '');
+    }
+  };
 
   // Auth
   useEffect(() => {
@@ -183,6 +223,7 @@ export default function App() {
 
     const unsubCourses = subscribeToCourses(user.uid, setCourses);
     const unsubSessions = subscribeToSessions(user.uid, setSessions);
+    const unsubClients = subscribeToClients(user.uid, setClients);
     const unsubSettings = subscribeToSettings(user.uid, (s) => {
       if (!s) {
         const defaultSettings: TeacherSettings = {
@@ -201,6 +242,7 @@ export default function App() {
     return () => {
       unsubCourses();
       unsubSessions();
+      unsubClients();
       unsubSettings();
     };
   }, [user]);
@@ -351,8 +393,17 @@ export default function App() {
         <button onClick={() => setActiveTab('dashboard')} className={cn("p-2 rounded-xl", activeTab === 'dashboard' ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
           <LayoutDashboard className="w-6 h-6" />
         </button>
+        <button onClick={() => setActiveTab('activity')} className={cn("p-2 rounded-xl", activeTab === 'activity' ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
+          <TrendingUp className="w-6 h-6" />
+        </button>
         <button onClick={() => setActiveTab('courses')} className={cn("p-2 rounded-xl", activeTab === 'courses' ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
           <BookOpen className="w-6 h-6" />
+        </button>
+        <button onClick={() => setActiveTab('invoices')} className={cn("p-2 rounded-xl", activeTab === 'invoices' && !showInvoicePreview ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
+          <FileText className="w-6 h-6" />
+        </button>
+        <button onClick={handleGoToEditor} className={cn("p-2 rounded-xl", activeTab === 'invoices' && showInvoicePreview ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
+          <Edit2 className="w-6 h-6" />
         </button>
         <button 
           onClick={() => {
@@ -366,8 +417,8 @@ export default function App() {
         <button onClick={() => setActiveTab('calendar')} className={cn("p-2 rounded-xl", activeTab === 'calendar' ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
           <CalendarIcon className="w-6 h-6" />
         </button>
-        <button onClick={() => setActiveTab('settings')} className={cn("p-2 rounded-xl", activeTab === 'settings' ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
-          <SettingsIcon className="w-6 h-6" />
+        <button onClick={() => setActiveTab('integrations')} className={cn("p-2 rounded-xl", activeTab === 'integrations' ? "text-emerald-600 bg-emerald-50" : "text-slate-400")}>
+          <Share2 className="w-6 h-6" />
         </button>
       </nav>
 
@@ -382,9 +433,12 @@ export default function App() {
         
         <nav className="flex-1 px-4 space-y-1 mt-4">
           <SidebarItem icon={LayoutDashboard} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+          <SidebarItem icon={TrendingUp} label="Actividad Anual" active={activeTab === 'activity'} onClick={() => setActiveTab('activity')} />
           <SidebarItem icon={BookOpen} label="Mis Cursos" active={activeTab === 'courses'} onClick={() => setActiveTab('courses')} />
+          <SidebarItem icon={FileText} label="Facturas" active={activeTab === 'invoices' && !showInvoicePreview} onClick={() => { setActiveTab('invoices'); setShowInvoicePreview(false); }} />
+          <SidebarItem icon={Edit2} label="Editar Factura" active={activeTab === 'invoices' && showInvoicePreview} onClick={handleGoToEditor} />
           <SidebarItem icon={CalendarIcon} label="Calendario" active={activeTab === 'calendar'} onClick={() => setActiveTab('calendar')} />
-          <SidebarItem icon={SettingsIcon} label="Configuración" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
+          <SidebarItem icon={Share2} label="Integraciones" active={activeTab === 'integrations'} onClick={() => setActiveTab('integrations')} />
         </nav>
 
         <div className="p-4 mt-auto border-t border-slate-100">
@@ -406,35 +460,43 @@ export default function App() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 lg:ml-64 p-4 lg:p-8 pb-24 lg:pb-8">
+      <main 
+        className="flex-1 lg:ml-64 p-4 lg:p-8 pb-24 lg:pb-8 bg-cover bg-center bg-no-repeat bg-fixed" 
+        style={{ 
+          backgroundImage: 'linear-gradient(rgba(221, 187, 187, 0.85), rgba(221, 187, 187, 0.85)), url("https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=2072&auto=format&fit=crop")'
+        }}
+      >
         <header className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">
               {activeTab === 'dashboard' && 'Panel de Control'}
+              {activeTab === 'activity' && 'Actividad Anual'}
               {activeTab === 'courses' && 'Gestión de Cursos'}
+              {activeTab === 'invoices' && 'Generar Facturas'}
               {activeTab === 'calendar' && 'Calendario Docente'}
+              {activeTab === 'integrations' && 'Integraciones'}
               {activeTab === 'settings' && 'Configuración'}
             </h2>
             <p className="text-slate-500">
               {activeTab === 'dashboard' && 'Bienvenido de nuevo, aquí tienes un resumen de tu actividad.'}
+              {activeTab === 'activity' && 'Análisis detallado de tus horas e ingresos anuales.'}
               {activeTab === 'courses' && 'Administra tus cursos actuales y finalizados.'}
+              {activeTab === 'invoices' && 'Crea y gestiona facturas para tus cursos y sesiones.'}
               {activeTab === 'calendar' && 'Visualiza tu carga de trabajo y evita solapamientos.'}
+              {activeTab === 'integrations' && 'Conecta DocentePro con tus herramientas favoritas.'}
               {activeTab === 'settings' && 'Personaliza tus preferencias y límites de trabajo.'}
             </p>
           </div>
           
           <div className="flex items-center gap-4">
             <ClockDisplay />
-            {activeTab === 'dashboard' && (
-              <button 
-                onClick={runScheduleAnalysis}
-                disabled={isAnalyzingSchedule}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors shadow-sm disabled:opacity-50"
-              >
-                {isAnalyzingSchedule ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> : <BrainCircuit className="w-5 h-5" />}
-                Analizar Conflictos
-              </button>
-            )}
+            <button 
+              onClick={() => setActiveTab('settings')}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-medium hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <SettingsIcon className="w-5 h-5 text-slate-400" />
+              Configuración
+            </button>
             {activeTab === 'courses' && (
               <button 
                 onClick={() => document.getElementById('add-course-modal')?.classList.remove('hidden')}
@@ -447,9 +509,24 @@ export default function App() {
         </header>
 
         {/* Tab Content */}
-        {activeTab === 'dashboard' && <Dashboard stats={stats} courses={courses} sessions={sessions} onAnalyzeConflicts={runScheduleAnalysis} scheduleAnalysis={scheduleAnalysis} />}
+        {activeTab === 'dashboard' && <Dashboard stats={stats} onAnalyzeConflicts={runScheduleAnalysis} scheduleAnalysis={scheduleAnalysis} />}
+        {activeTab === 'activity' && <ActivityView courses={courses} sessions={sessions} />}
         {activeTab === 'courses' && <CourseManagement courses={courses} sessions={sessions} userId={user.uid} />}
+        {activeTab === 'invoices' && (
+          <Invoices 
+            courses={courses} 
+            sessions={sessions} 
+            user={user} 
+            settings={settings} 
+            clients={clients}
+            selectedCourseId={selectedInvoiceCourseId}
+            setSelectedCourseId={setSelectedInvoiceCourseId}
+            showPreview={showInvoicePreview}
+            setShowPreview={setShowInvoicePreview}
+          />
+        )}
         {activeTab === 'calendar' && <Calendar sessions={sessions} courses={courses} />}
+        {activeTab === 'integrations' && <Integrations />}
         {activeTab === 'settings' && <Settings settings={settings} userId={user.uid} />}
       </main>
 
@@ -543,13 +620,826 @@ export default function App() {
 
 // --- Sub-pages ---
 
-function Dashboard({ stats, courses, sessions, onAnalyzeConflicts, scheduleAnalysis }: { 
-  stats: DashboardStats, 
+function Integrations() {
+  const integrations = [
+    {
+      id: 'google-calendar',
+      name: 'Google Calendar',
+      description: 'Sincroniza tus sesiones automáticamente con tu calendario de Google.',
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/a/a5/Google_Calendar_icon_%282020%29.svg',
+      status: 'available',
+      color: 'bg-blue-50'
+    },
+    {
+      id: 'outlook',
+      name: 'Outlook Calendar',
+      description: 'Conecta tu cuenta de Microsoft para gestionar tus clases desde Outlook.',
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/d/df/Microsoft_Office_Outlook_%282018%E2%80%93present%29.svg',
+      status: 'available',
+      color: 'bg-indigo-50'
+    },
+    {
+      id: 'zoom',
+      name: 'Zoom Video',
+      description: 'Crea enlaces de reuniones automáticamente para tus clases online.',
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/9/9b/Zoom_Communications_Logo.svg',
+      status: 'coming-soon',
+      color: 'bg-sky-50'
+    },
+    {
+      id: 'moodle',
+      name: 'Moodle',
+      description: 'Importa tus cursos y alumnos directamente desde tu plataforma Moodle.',
+      icon: 'https://upload.wikimedia.org/wikipedia/commons/c/c5/Moodle-logo.svg',
+      status: 'coming-soon',
+      color: 'bg-orange-50'
+    }
+  ];
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {integrations.map((item) => (
+        <div key={item.id} className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm hover:shadow-md transition-all group">
+          <div className="flex items-start justify-between mb-6">
+            <div className={cn("p-4 rounded-2xl", item.color)}>
+              <img src={item.icon} alt={item.name} className="w-8 h-8 object-contain" />
+            </div>
+            {item.status === 'available' ? (
+              <button className="px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-xl hover:bg-slate-800 transition-colors">
+                Conectar
+              </button>
+            ) : (
+              <span className="px-3 py-1 bg-slate-100 text-slate-400 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                Próximamente
+              </span>
+            )}
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 mb-2">{item.name}</h3>
+          <p className="text-sm text-slate-500 leading-relaxed mb-4">
+            {item.description}
+          </p>
+          {item.status === 'available' && (
+            <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
+              Ver documentación <ExternalLink className="w-3 h-3" />
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Invoices({ 
+  courses, 
+  sessions, 
+  user, 
+  settings, 
+  clients,
+  selectedCourseId,
+  setSelectedCourseId,
+  showPreview,
+  setShowPreview
+}: { 
   courses: Course[], 
   sessions: Session[], 
-  onAnalyzeConflicts: () => void,
-  scheduleAnalysis: { conflicts: { type: string, message: string, date: string, solution: string }[], summary: string } | null
+  user: User, 
+  settings: TeacherSettings | null, 
+  clients: Client[],
+  selectedCourseId: string,
+  setSelectedCourseId: (id: string) => void,
+  showPreview: boolean,
+  setShowPreview: (show: boolean) => void
 }) {
+  const selectedCourse = courses.find(c => c.id === selectedCourseId);
+  const courseSessions = sessions.filter(s => s.courseId === selectedCourseId);
+  
+  const totalAmount = useMemo(() => {
+    if (!selectedCourse) return 0;
+    if (selectedCourse.pricingType === 'total') return selectedCourse.price;
+    
+    const hours = courseSessions.reduce((acc, s) => {
+      const start = parseISO(`${s.date}T${s.startTime}`);
+      const end = parseISO(`${s.date}T${s.endTime}`);
+      return acc + differenceInHours(end, start);
+    }, 0);
+    
+    return hours * selectedCourse.price;
+  }, [selectedCourse, courseSessions]);
+
+  if (showPreview && selectedCourse) {
+    return (
+      <InvoiceEditor 
+        course={selectedCourse} 
+        sessions={courseSessions} 
+        allCourses={courses}
+        allSessions={sessions}
+        user={user} 
+        settings={settings}
+        clients={clients}
+        onBack={() => setShowPreview(false)} 
+      />
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto space-y-8">
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-emerald-600" />
+            Nueva Factura
+          </h3>
+          <button 
+            onClick={() => selectedCourseId && setShowPreview(true)}
+            disabled={!selectedCourseId}
+            className={cn(
+              "flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-xl transition-all border shadow-sm disabled:opacity-50",
+              selectedCourseId 
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100" 
+                : "bg-slate-50 border-slate-200 text-slate-400"
+            )}
+          >
+            <Edit2 className="w-4 h-4" />
+            Editar Factura
+          </button>
+        </div>
+        
+        <div className="space-y-6">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-2">Seleccionar Curso</label>
+            <select 
+              value={selectedCourseId}
+              onChange={(e) => setSelectedCourseId(e.target.value)}
+              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none transition-all"
+            >
+              <option value="">Selecciona un curso para facturar...</option>
+              {courses.map(course => (
+                <option key={course.id} value={course.id}>{course.name} ({course.entity})</option>
+              ))}
+            </select>
+          </div>
+
+          {selectedCourse && (
+            <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100 space-y-4">
+              <div className="flex justify-between items-center pb-4 border-bottom border-slate-200">
+                <span className="text-slate-500">Cliente / Entidad</span>
+                <span className="font-bold text-slate-900">{selectedCourse.entity}</span>
+              </div>
+              <div className="flex justify-between items-center pb-4 border-bottom border-slate-200">
+                <span className="text-slate-500">Tipo de Tarifa</span>
+                <span className="font-bold text-slate-900">{selectedCourse.pricingType === 'hourly' ? 'Por Hora' : 'Precio Total'}</span>
+              </div>
+              <div className="flex justify-between items-center pb-4 border-bottom border-slate-200">
+                <span className="text-slate-500">Sesiones registradas</span>
+                <span className="font-bold text-slate-900">{courseSessions.length}</span>
+              </div>
+              <div className="flex justify-between items-center pt-4 border-t border-slate-200">
+                <span className="text-lg font-bold text-slate-900">Total a Facturar</span>
+                <span className="text-2xl font-black text-emerald-600">{totalAmount}€</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button 
+              disabled={!selectedCourseId}
+              className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:shadow-none"
+            >
+              Generar PDF de Factura
+            </button>
+            <button 
+              disabled={!selectedCourseId}
+              className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-100 disabled:opacity-50 disabled:shadow-none"
+            >
+              Enviar por Email
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white border border-slate-200 rounded-3xl p-8 shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900 mb-6">Historial de Facturas</h3>
+        <div className="text-center py-12">
+          <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <FileText className="w-8 h-8 text-slate-300" />
+          </div>
+          <p className="text-slate-500">No hay facturas generadas todavía.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvoiceEditor({ 
+  course, 
+  sessions, 
+  allCourses,
+  allSessions,
+  user, 
+  settings, 
+  clients,
+  onBack 
+}: { 
+  course: Course, 
+  sessions: Session[], 
+  allCourses: Course[],
+  allSessions: Session[],
+  user: User, 
+  settings: TeacherSettings | null,
+  clients: Client[],
+  onBack: () => void 
+}) {
+  const [invoiceNumber, setInvoiceNumber] = useState('8');
+  const [invoiceDate, setInvoiceDate] = useState(format(new Date(), 'yyyy-MM-dd'));
+  const [expirationDate, setExpirationDate] = useState(format(addDays(new Date(), 30), 'yyyy-MM-dd'));
+  const [selectedMonth, setSelectedMonth] = useState(format(new Date(), 'yyyy-MM'));
+  const [ivaRate, setIvaRate] = useState(0);
+  const [irpfRate, setIrpfRate] = useState(0.07);
+  const [accountNumber, setAccountNumber] = useState('0000 0000 0000 0000 0000 0000');
+  
+  const [emisorName, setEmisorName] = useState(user.displayName || 'Francisco Javier Flor González');
+  const [emisorNif, setEmisorNif] = useState('30602373E');
+  const [emisorAddress, setEmisorAddress] = useState('Urbanización La Sorrozuela 114-115, 39170 Ajo (Cantabria)');
+  const [emisorPhone, setEmisorPhone] = useState('687216537');
+  const [emisorEmail, setEmisorEmail] = useState('jflorperitociberseguridad@gmail.com\njfloradmin@cibermedida.es\njavierflordocentetics@gmail.com');
+  
+  const [client, setClient] = useState({
+    name: course.entity,
+    cif: '',
+    address: course.location,
+    phone: '',
+    email: ''
+  });
+
+  useEffect(() => {
+    const matchedClient = clients.find(c => c.name === course.entity);
+    if (matchedClient) {
+      setClient({
+        name: matchedClient.name,
+        cif: matchedClient.cif,
+        address: matchedClient.address,
+        phone: matchedClient.phone,
+        email: matchedClient.email
+      });
+    }
+  }, [course.entity, clients]);
+
+  const handleSaveClient = async () => {
+    const existingClient = clients.find(c => c.name === client.name);
+    if (existingClient && existingClient.id) {
+      await updateClient(existingClient.id, { ...client });
+    } else {
+      await addClient({ ...client, userId: user.uid });
+    }
+    alert('Cliente guardado correctamente');
+  };
+
+  const handleSelectClient = (clientId: string) => {
+    const selected = clients.find(c => c.id === clientId);
+    if (selected) {
+      setClient({
+        name: selected.name,
+        cif: selected.cif,
+        address: selected.address,
+        phone: selected.phone,
+        email: selected.email
+      });
+    }
+  };
+
+  const initialHours = useMemo(() => {
+    return sessions.filter(s => s.date.startsWith(selectedMonth)).reduce((acc, s) => {
+      const start = parseISO(`${s.date}T${s.startTime}`);
+      const end = parseISO(`${s.date}T${s.endTime}`);
+      return acc + differenceInHours(end, start);
+    }, 0);
+  }, [sessions, selectedMonth]);
+
+  const [items, setItems] = useState([
+    {
+      id: '1',
+      hours: initialHours,
+      description: `${course.name}\n(${format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: es })} / ${course.schedule})`,
+      unitPrice: course.price
+    }
+  ]);
+
+  // Update first item when initialHours changes (only if it's the only item and hasn't been heavily edited)
+  useEffect(() => {
+    setItems(prev => {
+      if (prev.length === 1 && prev[0].id === '1') {
+        return [{
+          ...prev[0],
+          hours: initialHours,
+          description: `${course.name}\n(${format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: es })} / ${course.schedule})`
+        }];
+      }
+      return prev;
+    });
+  }, [initialHours, selectedMonth, course.name, course.schedule]);
+
+  const subtotal = items.reduce((acc, item) => acc + (item.hours * item.unitPrice), 0);
+  const iva = subtotal * (ivaRate / 100);
+  const irpf = subtotal * irpfRate;
+  const total = subtotal + iva - irpf;
+
+  const updateItem = (id: string, field: string, value: any) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const removeItem = (id: string) => {
+    if (items.length > 1) {
+      setItems(prev => prev.filter(item => item.id !== id));
+    }
+  };
+
+  const addCourseItem = (courseId: string) => {
+    const selected = allCourses.find(c => c.id === courseId);
+    if (selected) {
+      const courseSessions = allSessions.filter(s => 
+        s.courseId === selected.id && 
+        s.date.startsWith(selectedMonth)
+      );
+      const hours = courseSessions.reduce((acc, s) => {
+        const start = parseISO(`${s.date}T${s.startTime}`);
+        const end = parseISO(`${s.date}T${s.endTime}`);
+        return acc + differenceInHours(end, start);
+      }, 0);
+
+      const newItem = {
+        id: Math.random().toString(36).substr(2, 9),
+        hours: hours,
+        description: `${selected.name}\n(${format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: es })} / ${selected.schedule})`,
+        unitPrice: selected.price
+      };
+      setItems(prev => [...prev, newItem]);
+    }
+  };
+
+  const loadAllCoursesOfMonth = () => {
+    const coursesInMonth = allCourses.filter(c => 
+      allSessions.some(s => s.courseId === c.id && s.date.startsWith(selectedMonth))
+    );
+    
+    const newItems = coursesInMonth.map(c => {
+      const courseSessions = allSessions.filter(s => s.courseId === c.id && s.date.startsWith(selectedMonth));
+      const hours = courseSessions.reduce((acc, s) => {
+        const start = parseISO(`${s.date}T${s.startTime}`);
+        const end = parseISO(`${s.date}T${s.endTime}`);
+        return acc + differenceInHours(end, start);
+      }, 0);
+
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        hours: hours,
+        description: `${c.name}\n(${format(parseISO(selectedMonth + '-01'), 'MMMM yyyy', { locale: es })} / ${c.schedule})`,
+        unitPrice: c.price
+      };
+    });
+
+    setItems(newItems);
+  };
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      <div className="flex items-center justify-between no-print px-4">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 text-slate-600 font-bold hover:text-slate-900 transition-colors"
+        >
+          <ChevronLeft className="w-5 h-5" />
+          Volver a facturación
+        </button>
+        <div className="flex gap-3">
+          <button onClick={() => window.print()} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all">
+            <Printer className="w-4 h-4" />
+            Imprimir
+          </button>
+          <button 
+            onClick={() => window.print()}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
+          >
+            <Download className="w-4 h-4" />
+            Descargar PDF
+          </button>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 no-print px-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase">N.º Factura:</span>
+              <input 
+                type="number" 
+                value={invoiceNumber}
+                onChange={(e) => setInvoiceNumber(e.target.value)}
+                className="w-20 px-2 py-1 bg-white border border-slate-300 rounded font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase">Fecha:</span>
+              <input 
+                type="date" 
+                value={invoiceDate}
+                onChange={(e) => setInvoiceDate(e.target.value)}
+                className="px-2 py-1 bg-white border border-slate-300 rounded font-bold text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+              />
+            </div>
+          </div>
+          <div className="text-[10px] text-slate-400 font-medium italic">
+            * Los datos del emisor y factura son fijos en el diseño para un acabado profesional.
+          </div>
+        </div>
+        
+        <div className="h-px bg-slate-200 w-full"></div>
+        
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Nombre Emisor</span>
+            <input 
+              type="text" 
+              value={emisorName}
+              onChange={(e) => setEmisorName(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">NIF</span>
+            <input 
+              type="text" 
+              value={emisorNif}
+              onChange={(e) => setEmisorNif(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Teléfono</span>
+            <input 
+              type="text" 
+              value={emisorPhone}
+              onChange={(e) => setEmisorPhone(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="col-span-2 space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Dirección</span>
+            <input 
+              type="text" 
+              value={emisorAddress}
+              onChange={(e) => setEmisorAddress(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Email</span>
+            <input 
+              type="text" 
+              value={emisorEmail}
+              onChange={(e) => setEmisorEmail(e.target.value)}
+              className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-200 w-full"></div>
+
+          <div className="grid grid-cols-4 gap-4">
+            <div className="col-span-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Nombre Cliente</span>
+                <select 
+                  onChange={(e) => handleSelectClient(e.target.value)}
+                  className="text-[9px] bg-white border border-slate-200 rounded px-1 outline-none"
+                >
+                  <option value="">Cargar cliente...</option>
+                  {clients.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <input 
+                type="text" 
+                value={client.name}
+                onChange={(e) => setClient({...client, name: e.target.value})}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">CIF Cliente</span>
+              <input 
+                type="text" 
+                value={client.cif}
+                onChange={(e) => setClient({...client, cif: e.target.value})}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Acciones</span>
+              <button 
+                onClick={handleSaveClient}
+                className="w-full py-1 bg-slate-900 text-white rounded text-[10px] font-bold hover:bg-slate-800 transition-colors"
+              >
+                Guardar en Agenda
+              </button>
+            </div>
+            <div className="col-span-2 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Dirección Cliente</span>
+              <input 
+                type="text" 
+                value={client.address}
+                onChange={(e) => setClient({...client, address: e.target.value})}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Teléfono Cliente</span>
+              <input 
+                type="text" 
+                value={client.phone}
+                onChange={(e) => setClient({...client, phone: e.target.value})}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Email Cliente</span>
+              <input 
+                type="text" 
+                value={client.email}
+                onChange={(e) => setClient({...client, email: e.target.value})}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Vencimiento</span>
+              <input 
+                type="date" 
+                value={expirationDate}
+                onChange={(e) => setExpirationDate(e.target.value)}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">IVA (%)</span>
+              <input 
+                type="number" 
+                value={ivaRate}
+                onChange={(e) => setIvaRate(Number(e.target.value))}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">IRPF (%)</span>
+              <input 
+                type="number" 
+                value={irpfRate * 100}
+                onChange={(e) => setIrpfRate(Number(e.target.value) / 100)}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="col-span-4 space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase">Número de cuenta</span>
+              <input 
+                type="text" 
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+                className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+            <div className="col-span-4 flex items-center gap-3 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase">Mes:</span>
+                <input 
+                  type="month" 
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="px-2 py-1 text-[10px] bg-white border border-slate-300 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+                <button 
+                  onClick={loadAllCoursesOfMonth}
+                  className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded text-[10px] font-bold hover:bg-emerald-100 transition-colors border border-emerald-200"
+                >
+                  Cargar mes
+                </button>
+              </div>
+              <div className="h-4 w-px bg-slate-200 mx-1"></div>
+              <select 
+                onChange={(e) => {
+                  if (e.target.value) {
+                    addCourseItem(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                className="px-3 py-1 text-[10px] bg-white border border-slate-300 rounded outline-none focus:ring-2 focus:ring-emerald-500"
+              >
+                <option value="">Añadir curso...</option>
+                {allCourses.filter(c => !items.some(item => item.description.includes(c.name))).map(c => (
+                  <option key={c.id} value={c.id}>{c.name} ({c.entity})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+      </div>
+
+      <div className="a4-container" id="invoice-capture">
+        <div className="flex flex-col min-h-full border-[groove] border border-[#c85c10] rounded-lg">
+          <div className="flex-1 space-y-2">
+            {/* Header */}
+            <div className="text-center">
+              <h1 className="text-3xl font-black text-[#c85c10] tracking-widest uppercase mb-1">FACTURA</h1>
+            </div>
+
+          {/* Emisor & Meta */}
+          <div className="flex justify-between items-start gap-8">
+            <div className="flex-1 border-[groove] border border-[#c85c10] rounded-lg p-2">
+              <div className="flex items-baseline justify-between mb-1">
+                <h2 className="text-[10px] font-bold text-[#c85c10] uppercase tracking-[0.2em]">Emisor</h2>
+              </div>
+              <p className="text-xl font-black text-slate-900 leading-none mb-2">{emisorName}</p>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-[11px]">
+                <div className="flex items-center gap-1.5 border-double border-4 border-[#c85c10] rounded-lg p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px]">NIF</span>
+                  <span className="font-bold text-slate-700">{emisorNif}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px]">Teléfono</span>
+                  <span className="font-medium text-slate-600">{emisorPhone}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px]">Dirección</span>
+                  <span className="font-medium text-slate-600">{emisorAddress}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px]">Email</span>
+                  <span className="font-medium text-slate-600">{emisorEmail}</span>
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-col items-end min-w-[220px] p-2">
+              <div className="flex justify-between w-full items-baseline">
+                <span className="font-bold text-[10px] uppercase text-[#c85c10] tracking-tighter">N.º Factura</span>
+                <span className="font-black text-lg text-slate-900 leading-none">{invoiceNumber}</span>
+              </div>
+              <div className="flex justify-between w-full items-baseline mt-1">
+                <span className="font-bold text-[10px] uppercase text-[#c85c10] tracking-tighter">Fecha Emisión</span>
+                <span className="font-black text-sm text-slate-900 leading-none">
+                  {new Date(invoiceDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Cliente */}
+          <div className="border-double border border-[#c85c10] rounded-lg pb-2">
+            <div className="flex justify-between items-end">
+              <div className="flex-1">
+                <div className="flex flex-col gap-1 text-[11px]">
+                <p className="text-base font-black text-slate-900 leading-none mb-1">Cliente: {client.name}</p>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px] w-16">CIF:</span>
+                  <span className="font-bold text-slate-700">{client.cif}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px] w-16">Dirección:</span>
+                  <span className="font-medium text-slate-600">{client.address}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px] w-16">Teléfono:</span>
+                  <span className="font-medium text-slate-600">{client.phone}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-slate-200 rounded-lg p-1">
+                  <span className="font-bold text-[#c85c10] uppercase text-[9px] w-16">Email:</span>
+                  <span className="font-medium text-slate-600">{client.email}</span>
+                </div>
+              </div>
+              </div>
+              <div className="text-right border-l border-slate-200 pl-4 ml-4">
+                <span className="block font-bold text-[#c85c10] uppercase text-[9px] mb-0.5">Vencimiento</span>
+                <span className="block font-black text-xs text-slate-900">
+                  {new Date(expirationDate).toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Header Info */}
+          <div className="grid grid-cols-[4fr_1fr_1fr_1fr] bg-[#c85c10] border border-[#c85c10] text-center font-bold text-white text-xs">
+            <div className="p-1 border-r border-white/20">Cliente</div>
+            <div className="p-1 border-r border-white/20">Trabajo</div>
+            <div className="p-1 border-r border-white/20">Condiciones</div>
+            <div className="p-1">Vencimiento</div>
+          </div>
+          <div className="grid grid-cols-[4fr_1fr_1fr_1fr] border-x border-b border-slate-300 text-center text-[10px] font-bold">
+            <div className="p-1 border-r border-slate-300 bg-white text-slate-900 truncate">{client.name}</div>
+            <div className="p-1 border-r border-slate-300">Docencia</div>
+            <div className="p-1 border-r border-slate-300">Recepción</div>
+            <div className="p-1 bg-white text-slate-900">{expirationDate}</div>
+          </div>
+
+          {/* Main Items Table */}
+          <div className="overflow-hidden border border-slate-300 rounded-sm">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-white text-slate-900 border-b border-slate-300 font-bold text-[10px]">
+                  <th className="p-1 border-r border-slate-300 w-16">Horas</th>
+                  <th className="p-1 border-r border-slate-300">Descripción</th>
+                  <th className="p-1 border-r border-slate-300 w-16">Precio (€)</th>
+                  <th className="p-1 w-24">Total (€)</th>
+                  <th className="p-1 w-8 no-print"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(item => (
+                  <tr key={item.id} className="border-b border-slate-300 break-inside-avoid">
+                    <td className="p-1 bg-white border-r border-slate-300 text-center">
+                      <input 
+                        type="number" 
+                        value={item.hours}
+                        onChange={(e) => updateItem(item.id, 'hours', Number(e.target.value))}
+                        className="w-full bg-transparent border-none text-center font-black text-base outline-none"
+                      />
+                    </td>
+                    <td className="p-1 bg-white border-r border-slate-300">
+                      <textarea 
+                        value={item.description}
+                        onChange={(e) => updateItem(item.id, 'description', e.target.value)}
+                        rows={2}
+                        className="w-full bg-transparent border-none font-bold text-slate-900 text-xs leading-relaxed outline-none resize-none"
+                      />
+                    </td>
+                    <td className="p-1 bg-white border-r border-slate-300 text-center">
+                      <input 
+                        type="number" 
+                        value={item.unitPrice}
+                        onChange={(e) => updateItem(item.id, 'unitPrice', Number(e.target.value))}
+                        className="w-full bg-transparent border-none text-center font-black text-base text-slate-900 outline-none"
+                      />
+                    </td>
+                    <td className="p-1 bg-white text-right font-black text-base text-slate-900 whitespace-nowrap">
+                      {(item.hours * item.unitPrice).toFixed(2)} €
+                    </td>
+                    <td className="p-1 bg-white text-center no-print">
+                      <button 
+                        onClick={() => removeItem(item.id)}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals */}
+          <div className="flex justify-end break-inside-avoid border border-slate-300 rounded-lg p-4">
+            <div className="w-64 border border-slate-300">
+              <div className="flex justify-between items-center p-1.5 bg-white border-b border-slate-300 text-sm">
+                <span className="font-black text-slate-900 uppercase">Subtotal</span>
+                <span className="font-black text-slate-900">{subtotal.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between items-center p-1.5 border-b border-slate-300 bg-white text-sm">
+                <span className="font-black text-slate-600 uppercase">IVA ({ivaRate}%):</span>
+                <span className="font-black">{iva.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between items-center p-1.5 bg-white border-b border-slate-300 text-sm">
+                <span className="font-black text-slate-700 uppercase">IRPF ({(irpfRate * 100).toFixed(0)}%):</span>
+                <span className="font-black text-red-600">- {irpf.toFixed(2)} €</span>
+              </div>
+              <div className="flex justify-between items-center p-2 bg-white">
+                <span className="font-black text-slate-900 uppercase text-sm">TOTAL:</span>
+                <span className="font-black text-xl text-slate-900">{total.toFixed(2)} €</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="mt-auto pt-12 border-t border-slate-100 break-inside-avoid">
+          <div className="grid grid-cols-1 gap-8 text-[10px] text-slate-400 italic">
+            <div className="border border-slate-200 rounded-lg p-4">
+              <p className="font-bold text-[#c85c10] text-lg mb-2 not-italic">Forma de pago</p>
+              <p className="text-[14px] font-bold">Transferencia bancaria.</p>
+              <p className="text-[13px] font-bold">Número de cuenta: {accountNumber}</p>
+            </div>
+          </div>
+          <div className="mt-8 border border-slate-200 rounded-lg p-4 text-center text-[10px] text-slate-400 italic">
+              <p className="font-bold text-slate-500 mb-1 not-italic">Gracias por su confianza</p>
+              <p>Esta factura ha sido generada automáticamente por el sistema de gestión docente.</p>
+              <p>© {new Date().getFullYear()} Francisco Javier Flor González</p>
+              <div className="mt-8 mb-4 border-t border-slate-300 w-48 mx-auto"></div>
+              <p className="text-[8px] text-slate-500 uppercase tracking-widest">Firma</p>
+              <p className="mt-2 font-black text-slate-900 not-italic text-xs">{emisorName}</p>
+          </div>
+        </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ActivityView({ courses, sessions }: { courses: Course[], sessions: Session[] }) {
   const chartData = useMemo(() => {
     const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
     const currentYear = new Date().getFullYear();
@@ -582,6 +1472,73 @@ function Dashboard({ stats, courses, sessions, onAnalyzeConflicts, scheduleAnaly
     });
   }, [courses, sessions]);
 
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* Main Chart */}
+      <div className="lg:col-span-2 p-6 bg-white border border-slate-200 rounded-3xl shadow-sm">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-lg font-bold text-slate-900">Actividad Anual</h3>
+          <div className="flex gap-4 text-xs font-medium">
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-full"></div> Ingresos (€)</div>
+            <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-full"></div> Horas (h)</div>
+          </div>
+        </div>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+              <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
+              <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
+              <Tooltip 
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                cursor={{ fill: '#f8fafc' }}
+              />
+              <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
+              <Bar dataKey="horas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Upcoming Sessions */}
+      <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm">
+        <h3 className="text-lg font-bold text-slate-900 mb-6">Próximas Sesiones</h3>
+        <div className="space-y-4">
+          {sessions
+            .filter(s => isAfter(parseISO(s.date), new Date()))
+            .sort((a, b) => a.date.localeCompare(b.date))
+            .slice(0, 5)
+            .map(session => {
+              const course = courses.find(c => c.id === session.courseId);
+              const color = getCourseColor(course?.color || 'emerald');
+              return (
+                <div key={session.id} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
+                  <div className={cn("w-1 h-10 rounded-full", color.dot)} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{course?.name || 'Curso eliminado'}</p>
+                    <p className="text-xs text-slate-500">{format(parseISO(session.date), 'eee d MMM', { locale: es })} • {session.startTime}</p>
+                  </div>
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{session.status}</div>
+                </div>
+              );
+            })}
+          {sessions.filter(s => isAfter(parseISO(s.date), new Date())).length === 0 && (
+            <div className="text-center py-8">
+              <Clock className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+              <p className="text-xs text-slate-400">No hay sesiones próximas</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Dashboard({ stats, onAnalyzeConflicts, scheduleAnalysis }: { 
+  stats: DashboardStats, 
+  onAnalyzeConflicts: () => void,
+  scheduleAnalysis: { conflicts: { type: string, message: string, date: string, solution: string }[], summary: string } | null
+}) {
   const conflictStats = useMemo(() => {
     if (!scheduleAnalysis) return null;
     return {
@@ -594,9 +1551,9 @@ function Dashboard({ stats, courses, sessions, onAnalyzeConflicts, scheduleAnaly
     <div className="space-y-8">
       {/* Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Horas esta semana" value={`${stats.hoursThisWeek}h`} icon={Clock} color="bg-blue-500" trend="+12% vs semana pasada" />
-        <StatCard label="Ingresos este mes" value={`${stats.incomeThisMonth}€`} icon={Euro} color="bg-emerald-500" trend="+5% vs mes pasado" />
-        <StatCard label="Cursos activos" value={stats.activeCourses} icon={BookOpen} color="bg-violet-500" />
+        <StatCard label="Horas esta semana" value={`${stats.hoursThisWeek}h`} icon={Clock} color="bg-blue-500" trend="+12% vs semana pasada" bgColor="#ecc7f5" />
+        <StatCard label="Ingresos este mes" value={`${stats.incomeThisMonth}€`} icon={Euro} color="bg-emerald-500" trend="+5% vs mes pasado" bgColor="#d099dd" />
+        <StatCard label="Cursos activos" value={stats.activeCourses} icon={BookOpen} color="bg-violet-500" bgColor="#f693e1" />
         <StatCard 
           label="Conflictos" 
           value={conflictStats 
@@ -609,86 +1566,8 @@ function Dashboard({ stats, courses, sessions, onAnalyzeConflicts, scheduleAnaly
             ? (conflictStats.errors > 0 ? "bg-red-500" : conflictStats.warnings > 0 ? "bg-amber-500" : "bg-emerald-500")
             : "bg-slate-400"} 
           onClick={onAnalyzeConflicts}
+          bgColor="#f07070"
         />
-      </div>
-
-      {/* Quick Actions */}
-      <div className="p-6 bg-emerald-600 rounded-3xl shadow-lg shadow-emerald-200 text-white flex flex-col md:flex-row items-center justify-between gap-6">
-        <div>
-          <h3 className="text-xl font-bold mb-1">¿Tienes un nuevo curso?</h3>
-          <p className="text-emerald-50 opacity-90">Regístralo ahora para organizar tu calendario y calcular tus beneficios.</p>
-        </div>
-        <div className="flex gap-3 w-full md:w-auto">
-          <button 
-            onClick={() => document.getElementById('add-course-modal')?.classList.remove('hidden')}
-            className="flex-1 md:flex-none px-6 py-3 bg-white text-emerald-700 font-bold rounded-2xl hover:bg-emerald-50 transition-colors shadow-sm"
-          >
-            Añadir Nuevo Curso
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart */}
-        <div className="lg:col-span-2 p-6 bg-white border border-slate-200 rounded-3xl shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-bold text-slate-900">Actividad Anual</h3>
-            <div className="flex gap-4 text-xs font-medium">
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-emerald-500 rounded-full"></div> Ingresos (€)</div>
-              <div className="flex items-center gap-2"><div className="w-3 h-3 bg-blue-500 rounded-full"></div> Horas (h)</div>
-            </div>
-          </div>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#64748b', fontSize: 12}} />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                  cursor={{ fill: '#f8fafc' }}
-                />
-                <Bar dataKey="ingresos" fill="#10b981" radius={[4, 4, 0, 0]} barSize={20} />
-                <Bar dataKey="horas" fill="#3b82f6" radius={[4, 4, 0, 0]} barSize={20} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Upcoming Sessions */}
-        <div className="p-6 bg-white border border-slate-200 rounded-3xl shadow-sm">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Próximas Sesiones</h3>
-          <div className="space-y-4">
-            {sessions
-              .filter(s => isAfter(parseISO(s.date), new Date()))
-              .sort((a, b) => a.date.localeCompare(b.date))
-              .slice(0, 5)
-              .map(session => {
-                const course = courses.find(c => c.id === session.courseId);
-                return (
-                  <div key={session.id} className="flex items-center gap-4 p-3 rounded-2xl hover:bg-slate-50 transition-colors group">
-                    <div className="flex flex-col items-center justify-center w-12 h-12 bg-emerald-50 text-emerald-700 rounded-xl font-bold">
-                      <span className="text-xs uppercase">{format(parseISO(session.date), 'MMM', { locale: es })}</span>
-                      <span className="text-lg">{format(parseISO(session.date), 'dd')}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-900 truncate">{course?.name || 'Curso desconocido'}</p>
-                      <p className="text-xs text-slate-500 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {session.startTime} - {session.endTime} • {course?.entity}
-                      </p>
-                    </div>
-                    <CheckCircle2 className="w-5 h-5 text-slate-200 group-hover:text-emerald-500 transition-colors" />
-                  </div>
-                );
-              })}
-            {sessions.length === 0 && (
-              <div className="text-center py-8">
-                <CalendarIcon className="w-12 h-12 text-slate-200 mx-auto mb-2" />
-                <p className="text-sm text-slate-400">No hay sesiones programadas</p>
-              </div>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   );
@@ -768,10 +1647,13 @@ function CourseManagement({ courses, sessions, userId }: { courses: Course[], se
                   <td className="px-6 py-4">
                     <button 
                       onClick={() => setViewingCourse(course)}
-                      className="text-left group/name"
+                      className="text-left group/name flex items-center gap-3"
                     >
-                      <p className="text-sm font-bold text-slate-900 group-hover/name:text-emerald-600 transition-colors">{course.name}</p>
-                      <p className="text-xs text-slate-500">{course.modality} • {course.location}</p>
+                      <div className={cn("w-2 h-10 rounded-full shrink-0", getCourseColor(course.color).dot)} />
+                      <div>
+                        <p className="text-sm font-bold text-slate-900 group-hover/name:text-emerald-600 transition-colors">{course.name}</p>
+                        <p className="text-xs text-slate-500">{course.modality} • {course.location}</p>
+                      </div>
                     </button>
                   </td>
                   <td className="px-6 py-4 text-sm text-slate-600">{course.entity}</td>
@@ -934,7 +1816,11 @@ function CourseManagement({ courses, sessions, userId }: { courses: Course[], se
           <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-100 text-emerald-600 rounded-2xl">
+                <div className={cn(
+                  "p-3 rounded-2xl",
+                  getCourseColor(viewingCourse.color).bg,
+                  getCourseColor(viewingCourse.color).text
+                )}>
                   <BookOpen className="w-6 h-6" />
                 </div>
                 <div>
@@ -1057,10 +1943,23 @@ function Calendar({ sessions, courses }: { sessions: Session[], courses: Course[
 
   return (
     <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden">
-      <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-        <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">
-          {format(currentDate, 'MMMM yyyy', { locale: es })}
-        </h3>
+      <div className="p-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900 uppercase tracking-tight">
+            {format(currentDate, 'MMMM yyyy', { locale: es })}
+          </h3>
+          <div className="flex flex-wrap gap-3 mt-2">
+            {courses.filter(c => sessions.some(s => s.courseId === c.id)).map(course => {
+              const color = getCourseColor(course.color);
+              return (
+                <div key={course.id} className="flex items-center gap-1.5">
+                  <div className={cn("w-2 h-2 rounded-full", color.dot)} />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{course.name}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
         <div className="flex gap-2">
           <button onClick={prevMonth} className="p-2 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200">
             <ChevronLeft className="w-5 h-5 text-slate-600" />
@@ -1097,8 +1996,12 @@ function Calendar({ sessions, courses }: { sessions: Session[], courses: Course[
               <div className="space-y-1 overflow-y-auto max-h-[80px] scrollbar-hide">
                 {daySessions.map(s => {
                   const course = courses.find(c => c.id === s.courseId);
+                  const color = getCourseColor(course?.color);
                   return (
-                    <div key={s.id} className="px-2 py-1 text-[10px] font-bold bg-emerald-100 text-emerald-700 rounded-md truncate border border-emerald-200 flex items-center gap-1">
+                    <div key={s.id} className={cn(
+                      "px-2 py-1 text-[10px] font-bold rounded-md truncate border flex items-center gap-1",
+                      color.bg, color.text, color.border
+                    )}>
                       <Clock className="w-2 h-2" /> {s.startTime} {course?.name}
                     </div>
                   );
@@ -1217,12 +2120,16 @@ function CourseFormModal({ userId, course, onClose }: { userId: string, course?:
     totalHours: 0,
     pricingType: 'hourly',
     price: 0,
-    status: 'pendiente'
+    status: 'pendiente',
+    color: COURSE_COLORS[0].name
   });
 
   useEffect(() => {
     if (course) {
-      setFormData(course);
+      setFormData({
+        ...course,
+        color: course.color || COURSE_COLORS[0].name
+      });
     } else {
       setFormData({
         name: '',
@@ -1234,7 +2141,8 @@ function CourseFormModal({ userId, course, onClose }: { userId: string, course?:
         totalHours: 0,
         pricingType: 'hourly',
         price: 0,
-        status: 'pendiente'
+        status: 'pendiente',
+        color: COURSE_COLORS[0].name
       });
     }
   }, [course]);
@@ -1383,6 +2291,24 @@ function CourseFormModal({ userId, course, onClose }: { userId: string, course?:
                 required 
                 className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
               />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-xs font-bold text-slate-400 uppercase">Color del curso</label>
+              <div className="flex flex-wrap gap-3">
+                {COURSE_COLORS.map(color => (
+                  <button
+                    key={color.name}
+                    type="button"
+                    onClick={() => setFormData({...formData, color: color.name})}
+                    className={cn(
+                      "w-8 h-8 rounded-full border-2 transition-all",
+                      color.dot,
+                      formData.color === color.name ? "border-slate-900 scale-110" : "border-transparent hover:scale-105"
+                    )}
+                    title={color.name}
+                  />
+                ))}
+              </div>
             </div>
           </div>
           <button type="submit" className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg">
