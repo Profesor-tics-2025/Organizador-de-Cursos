@@ -13,7 +13,7 @@ import {
   Timestamp
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Course, Session, TeacherSettings } from '../types';
+import { Course, Session, TeacherSettings, Client } from '../types';
 
 // Helper to handle Firestore errors as per guidelines
 enum OperationType {
@@ -120,5 +120,38 @@ export const saveSettings = async (userId: string, settings: TeacherSettings) =>
     await setDoc(doc(db, 'settings', userId), settings);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, `settings/${userId}`);
+  }
+};
+
+// Clients
+export const subscribeToClients = (userId: string, callback: (clients: Client[]) => void) => {
+  const q = query(collection(db, 'clients'), where('userId', '==', userId));
+  return onSnapshot(q, (snapshot) => {
+    const clients = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Client));
+    callback(clients);
+  }, (error) => handleFirestoreError(error, OperationType.LIST, 'clients'));
+};
+
+export const addClient = async (client: Omit<Client, 'id'>) => {
+  try {
+    return await addDoc(collection(db, 'clients'), client);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, 'clients');
+  }
+};
+
+export const updateClient = async (id: string, client: Partial<Client>) => {
+  try {
+    await updateDoc(doc(db, 'clients', id), client);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `clients/${id}`);
+  }
+};
+
+export const deleteClient = async (id: string) => {
+  try {
+    await deleteDoc(doc(db, 'clients', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `clients/${id}`);
   }
 };
