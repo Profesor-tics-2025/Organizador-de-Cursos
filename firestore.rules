@@ -18,6 +18,7 @@ service cloud.firestore {
     function isValidCourse(data) {
       return data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
              data.entity is string && data.entity.size() > 0 &&
+             (!('color' in data) || data.color is string) &&
              data.userId == request.auth.uid;
     }
 
@@ -28,6 +29,18 @@ service cloud.firestore {
 
     function isValidSettings(data) {
       return data.userId == request.auth.uid;
+    }
+    
+    function isValidClient(data) {
+      return data.name is string && data.name.size() > 0 &&
+             data.userId == request.auth.uid;
+    }
+    
+    match /clients/{clientId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidClient(request.resource.data);
+      allow update: if isDocOwner() && isValidClient(request.resource.data);
+      allow delete: if isDocOwner();
     }
 
     match /courses/{courseId} {

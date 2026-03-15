@@ -17,6 +17,7 @@
         "pricingType": { "type": "string", "enum": ["hourly", "total"] },
         "price": { "type": "number" },
         "status": { "type": "string", "enum": ["pendiente", "confirmado", "finalizado"] },
+        "color": { "type": "string" },
         "userId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
@@ -50,6 +51,21 @@
         "preferredModality": { "type": "string" }
       },
       "required": ["userId"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "A client (entity or company) for whom the teacher provides services.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "cif": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "userId": { "type": "string" }
+      },
+      "required": ["name", "userId"]
     }
   },
   "firestore": {
@@ -64,6 +80,10 @@
     "/settings/{userId}": {
       "schema": "TeacherSettings",
       "description": "Teacher specific settings."
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Collection of clients."
     }
   }
 }
