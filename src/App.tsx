@@ -939,7 +939,7 @@ function InvoiceEditor({
   
   const [client, setClient] = useState({
     name: course.entity,
-    cif: '',
+    nif: '',
     address: course.location,
     phone: '',
     email: ''
@@ -951,7 +951,7 @@ function InvoiceEditor({
     if (matchedClient) {
       setClient({
         name: matchedClient.name,
-        cif: matchedClient.cif,
+        nif: matchedClient.nif,
         address: matchedClient.address,
         phone: matchedClient.phone,
         email: matchedClient.email
@@ -976,7 +976,7 @@ function InvoiceEditor({
     if (selected) {
       setClient({
         name: selected.name,
-        cif: selected.cif,
+        nif: selected.nif,
         address: selected.address,
         phone: selected.phone,
         email: selected.email
@@ -1225,8 +1225,8 @@ function InvoiceEditor({
             <span className="text-[10px] font-bold text-slate-400 uppercase">CIF Cliente</span>
             <input 
               type="text" 
-              value={client.cif}
-              onChange={(e) => setClient({...client, cif: e.target.value})}
+              value={client.nif}
+              onChange={(e) => setClient({...client, nif: e.target.value})}
               className="w-full px-2 py-1 text-xs bg-white border border-slate-200 rounded outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
@@ -1393,7 +1393,7 @@ function InvoiceEditor({
                 <p className="text-base font-black text-slate-900 leading-none mb-1">Cliente: {client.name}</p>
                 <div className="flex items-center gap-1.5 p-1">
                   <span className="font-bold text-[#c85c10] uppercase text-[9px] w-16">CIF:</span>
-                  <span className="font-bold text-slate-700">{client.cif}</span>
+                  <span className="font-bold text-slate-700">{client.nif}</span>
                 </div>
                 <div className="flex items-center gap-1.5 border border-[#c85c10] rounded-lg p-1">
                   <span className="font-bold text-[#c85c10] uppercase text-[9px] w-16">Dirección:</span>
@@ -2327,6 +2327,7 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
     startDate: '',
     endDate: '',
     totalHours: 0,
+    schedule: '',
     pricingType: 'hourly',
     price: 0,
     status: 'pendiente',
@@ -2348,6 +2349,7 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
         startDate: '',
         endDate: '',
         totalHours: 0,
+        schedule: '',
         pricingType: 'hourly',
         price: 0,
         status: 'pendiente',
@@ -2418,11 +2420,20 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
           </div>
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase">Ciudad / Plataforma</label>
-            <input 
-              value={formData.location} 
+            <input
+              value={formData.location}
               onChange={e => setFormData({...formData, location: e.target.value})}
-              placeholder="Ej: Madrid o Zoom" 
-              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500" 
+              placeholder="Ej: Madrid o Zoom"
+              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase">Horario</label>
+            <input
+              value={formData.schedule}
+              onChange={e => setFormData({...formData, schedule: e.target.value})}
+              placeholder="Ej: Lunes y Miércoles 18:00-20:00"
+              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
           <div className="space-y-1">

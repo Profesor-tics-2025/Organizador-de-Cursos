@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS courses (
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   total_hours DECIMAL(10,2) NOT NULL,
+  schedule VARCHAR(255),
   pricing_type ENUM('hourly', 'total') NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   status ENUM('pendiente', 'confirmado', 'finalizado') NOT NULL,
@@ -34,6 +35,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   start_time TIME NOT NULL,
   end_time TIME NOT NULL,
   content TEXT,
+  status ENUM('pendiente', 'impartida') NOT NULL DEFAULT 'pendiente',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -85,6 +87,7 @@ CREATE TABLE IF NOT EXISTS settings (
   min_hourly_rate DECIMAL(10,2) DEFAULT 0,
   available_days JSON,
   preferred_modality ENUM('any', 'presencial', 'teleformación', 'híbrido') DEFAULT 'any',
+  bank_account VARCHAR(255) DEFAULT '',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
