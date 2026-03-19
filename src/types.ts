@@ -38,6 +38,7 @@ export interface TeacherSettings {
   availableDays: string[];
   minHourlyRate: number;
   preferredModality: Modality | 'any';
+  bankAccount: string;
 }
 
 export interface DashboardStats {
@@ -48,6 +49,12 @@ export interface DashboardStats {
   incomeThisYear: number;
   activeCourses: number;
   overlaps: number;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  name: string;
 }
 
 export interface Client {

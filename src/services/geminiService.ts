@@ -7,19 +7,21 @@ export async function analyzeScheduleConflicts(
   courses: Course[],
   sessions: Session[]
 ) {
+  const safeCourses = courses || [];
+  const safeSessions = sessions || [];
   const model = "gemini-3.1-pro-preview";
   
   const prompt = `
     Como asistente experto en gestión de horarios para docentes, analiza el siguiente calendario de sesiones y cursos pendientes para detectar conflictos críticos, solapamientos o riesgos de fatiga.
     
     CURSOS ACTUALES Y CONFIRMADOS:
-    ${courses.filter(c => c.status === 'confirmado').map(c => `- ${c.name} (${c.entity})`).join('\n')}
+    ${safeCourses.filter(c => c.status === 'confirmado').map(c => `- ${c.name} (${c.entity})`).join('\n')}
     
     CURSOS PENDIENTES DE CONFIRMACIÓN:
-    ${courses.filter(c => c.status === 'pendiente').map(c => `- ${c.name} (${c.entity}) - Horario previsto: ${c.schedule}`).join('\n')}
+    ${safeCourses.filter(c => c.status === 'pendiente').map(c => `- ${c.name} (${c.entity}) - Horario previsto: ${c.schedule}`).join('\n')}
     
     SESIONES PROGRAMADAS (DETALLE):
-    ${sessions.map(s => `- ${s.date}: ${s.startTime} a ${s.endTime} (Curso: ${courses.find(c => c.id === s.courseId)?.name})`).join('\n')}
+    ${safeSessions.map(s => `- ${s.date}: ${s.startTime} a ${s.endTime} (Curso: ${safeCourses.find(c => c.id === s.courseId)?.name})`).join('\n')}
     
     Identifica:
     1. Solapamientos exactos (mismo día y hora). Indica qué cursos/sesiones están en conflicto.
