@@ -60,7 +60,7 @@ export interface User {
 export interface Client {
   id?: string;
   name: string;
-  cif: string;
+  nif: string;
   address: string;
   phone: string;
   email: string;
