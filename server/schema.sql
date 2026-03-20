@@ -5,6 +5,16 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) UNIQUE NOT NULL,
   password_hash VARCHAR(255) NOT NULL,
   name VARCHAR(255),
+  username VARCHAR(50),
+  phone VARCHAR(50),
+  address VARCHAR(255),
+  birthdate DATE,
+  country VARCHAR(100) DEFAULT 'España',
+  timezone VARCHAR(100) DEFAULT 'Europe/Madrid',
+  avatar_color VARCHAR(20) DEFAULT '#10b981',
+  language VARCHAR(10) DEFAULT 'es',
+  last_login TIMESTAMP,
+  last_login_ip VARCHAR(50),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -19,6 +29,8 @@ CREATE TABLE IF NOT EXISTS courses (
   end_date DATE NOT NULL,
   total_hours DECIMAL(10,2) NOT NULL,
   schedule VARCHAR(255),
+  start_time TIME,
+  end_time TIME,
   pricing_type ENUM('hourly', 'total') NOT NULL,
   price DECIMAL(10,2) NOT NULL,
   status ENUM('pendiente', 'confirmado', 'finalizado') NOT NULL,

@@ -22,6 +22,8 @@ router.get('/courses', async (req: AuthRequest, res) => {
       endDate: r.end_date,
       totalHours: r.total_hours,
       schedule: r.schedule,
+      startTime: r.start_time || '',
+      endTime: r.end_time || '',
       pricingType: r.pricing_type,
       price: r.price,
       status: r.status,
@@ -35,10 +37,10 @@ router.get('/courses', async (req: AuthRequest, res) => {
 router.post('/courses', async (req: AuthRequest, res) => {
   try {
     const id = uuidv4();
-    const { name, entity, modality, location, startDate, endDate, totalHours, schedule, pricingType, price, status, color } = req.body;
+    const { name, entity, modality, location, startDate, endDate, totalHours, schedule, startTime, endTime, pricingType, price, status, color } = req.body;
     await pool.query(
-      'INSERT INTO courses (id, user_id, name, entity, modality, location, start_date, end_date, total_hours, schedule, pricing_type, price, status, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, req.user?.id, name, entity, modality, location, startDate, endDate, totalHours, schedule, pricingType, price, status, color]
+      'INSERT INTO courses (id, user_id, name, entity, modality, location, start_date, end_date, total_hours, schedule, start_time, end_time, pricing_type, price, status, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, req.user?.id, name, entity, modality, location, startDate, endDate, totalHours, schedule, startTime || null, endTime || null, pricingType, price, status, color]
     );
     res.json({ id, ...req.body, userId: req.user?.id });
   } catch (e) { 
@@ -49,10 +51,10 @@ router.post('/courses', async (req: AuthRequest, res) => {
 
 router.put('/courses/:id', async (req: AuthRequest, res) => {
   try {
-    const { name, entity, modality, location, startDate, endDate, totalHours, schedule, pricingType, price, status, color } = req.body;
+    const { name, entity, modality, location, startDate, endDate, totalHours, schedule, startTime, endTime, pricingType, price, status, color } = req.body;
     await pool.query(
-      'UPDATE courses SET name=?, entity=?, modality=?, location=?, start_date=?, end_date=?, total_hours=?, schedule=?, pricing_type=?, price=?, status=?, color=? WHERE id=? AND user_id=?',
-      [name, entity, modality, location, startDate, endDate, totalHours, schedule, pricingType, price, status, color, req.params.id, req.user?.id]
+      'UPDATE courses SET name=?, entity=?, modality=?, location=?, start_date=?, end_date=?, total_hours=?, schedule=?, start_time=?, end_time=?, pricing_type=?, price=?, status=?, color=? WHERE id=? AND user_id=?',
+      [name, entity, modality, location, startDate, endDate, totalHours, schedule, startTime || null, endTime || null, pricingType, price, status, color, req.params.id, req.user?.id]
     );
     res.json({ success: true });
   } catch (e) { res.status(500).json({ error: 'Error updating course' }); }

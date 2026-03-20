@@ -27,18 +27,27 @@ import {
   FileText,
   Printer,
   Download,
-  Users
+  Users,
+  Eye,
+  ArrowLeft,
+  Search,
+  Mail,
+  Phone,
+  MapPin
 } from 'lucide-react';
-import { 
-  Course, 
-  Session, 
-  TeacherSettings, 
+import {
+  Course,
+  Session,
+  TeacherSettings,
   DashboardStats,
   Modality,
   CourseStatus,
   PricingType,
   Client,
-  User
+  User,
+  Holiday,
+  Vacation,
+  CalendarSettings
 } from './types';
 import { api } from './lib/api';
 import { Auth } from './components/Auth/Auth';
@@ -209,24 +218,411 @@ function ClockDisplay() {
   );
 }
 
-function ClientManagement({ clients }: { clients: Client[] }) {
-  const safeClients = clients || [];
+function ClientManagement({ 
+  clients, 
+  onAdd, 
+  onUpdate, 
+  onDelete 
+}: { 
+  clients: Client[], 
+  onAdd?: (client: Client) => void,
+  onUpdate?: (id: string, client: Client) => void,
+  onDelete?: (id: string) => void
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [formData, setFormData] = useState<Omit<Client, 'id' | 'userId'>>({
+    name: '',
+    email: '',
+    phone: '',
+    nif: '',
+    address: '',
+  });
+
+  const filteredClients = (clients || []).filter(client =>
+    client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    client.phone.includes(searchTerm)
+  );
+
+  const handleOpenForm = (client?: Client) => {
+    if (client) {
+      setEditingClient(client);
+      setFormData({
+        name: client.name,
+        email: client.email,
+        phone: client.phone,
+        nif: client.nif,
+        address: client.address,
+      });
+    } else {
+      setEditingClient(null);
+      setFormData({
+        name: '',
+        email: '',
+        phone: '',
+        nif: '',
+        address: '',
+      });
+    }
+    setShowForm(true);
+  };
+
+  const handleCloseForm = () => {
+    setShowForm(false);
+    setEditingClient(null);
+    setFormData({
+      name: '',
+      email: '',
+      phone: '',
+      nif: '',
+      address: '',
+    });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.name.trim()) {
+      alert('El nombre del cliente es requerido');
+      return;
+    }
+
+    if (editingClient && editingClient.id && onUpdate) {
+      onUpdate(editingClient.id, {
+        ...editingClient,
+        ...formData,
+      });
+    } else if (onAdd) {
+      onAdd({
+        ...formData,
+        userId: '',
+      } as Client);
+    }
+
+    handleCloseForm();
+  };
+
+  const handleDelete = (id: string | undefined) => {
+    if (!id) return;
+    if (window.confirm('¿Estás seguro de que deseas eliminar este cliente?')) {
+      onDelete?.(id);
+      if (selectedClient?.id === id) {
+        setSelectedClient(null);
+      }
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
   return (
-    <div className="bg-white border border-slate-200 rounded-3xl shadow-sm p-6">
-      <h3 className="text-xl font-bold text-slate-900 mb-6">Tus Clientes</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {safeClients.map(client => (
-          <div key={client.id} className="p-4 border border-slate-100 rounded-2xl bg-slate-50">
-            <p className="font-bold text-slate-900">{client.name}</p>
-            <p className="text-sm text-slate-500">{client.email}</p>
-            <p className="text-sm text-slate-500">{client.phone}</p>
-            <p className="text-sm text-slate-500">{client.address}</p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Gestión de Clientes</h1>
+          <p className="mt-1 text-slate-600">Administra tu base de datos de clientes</p>
+        </div>
+        <button
+          onClick={() => handleOpenForm()}
+          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+        >
+          <Plus className="w-5 h-5" />
+          Nuevo Cliente
+        </button>
+      </div>
+
+      {/* Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+        <input
+          type="text"
+          placeholder="Buscar por nombre, email o teléfono..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Clients Table/List */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
+            {filteredClients.length === 0 ? (
+              <div className="p-8 text-center">
+                <FileText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <p className="text-slate-500">
+                  {(clients || []).length === 0 
+                    ? 'No tienes clientes aún. ¡Crea el primero!' 
+                    : 'No se encontraron clientes'}
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">Nombre</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">Teléfono</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">NIF</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-slate-600">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredClients.map((client) => (
+                      <tr 
+                        key={client.id}
+                        onClick={() => setSelectedClient(client)}
+                        className={`border-b border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer ${
+                          selectedClient?.id === client.id ? 'bg-emerald-50' : ''
+                        }`}
+                      >
+                        <td className="px-6 py-4 font-medium text-slate-900">{client.name}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{client.email}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{client.phone}</td>
+                        <td className="px-6 py-4 text-sm text-slate-600">{client.nif}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenForm(client);
+                              }}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Editar"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDelete(client.id);
+                              }}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
-        ))}
-        {safeClients.length === 0 && (
-          <p className="text-slate-500">No tienes clientes registrados.</p>
+        </div>
+
+        {/* Client Details Panel */}
+        {selectedClient && (
+          <div className="bg-white rounded-lg border border-slate-200 p-6 h-fit">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-slate-900">Detalles</h3>
+              <button
+                onClick={() => setSelectedClient(null)}
+                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Name */}
+              <div>
+                <label className="text-xs font-semibold text-slate-600 uppercase">Nombre</label>
+                <p className="mt-1 text-slate-900 font-medium">{selectedClient.name}</p>
+              </div>
+
+              {/* NIF */}
+              <div>
+                <label className="text-xs font-semibold text-slate-600 uppercase">NIF</label>
+                <p className="mt-1 text-slate-900 font-medium">{selectedClient.nif || '-'}</p>
+              </div>
+
+              {/* Email */}
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Mail className="w-4 h-4 text-emerald-600" />
+                  <label className="text-xs font-semibold text-slate-600 uppercase">Email</label>
+                </div>
+                <a 
+                  href={`mailto:${selectedClient.email}`}
+                  className="text-emerald-600 hover:underline break-all"
+                >
+                  {selectedClient.email || '-'}
+                </a>
+              </div>
+
+              {/* Phone */}
+              <div className="bg-slate-50 p-3 rounded-lg">
+                <div className="flex items-center gap-2 mb-1">
+                  <Phone className="w-4 h-4 text-emerald-600" />
+                  <label className="text-xs font-semibold text-slate-600 uppercase">Teléfono</label>
+                </div>
+                <a 
+                  href={`tel:${selectedClient.phone}`}
+                  className="text-emerald-600 hover:underline"
+                >
+                  {selectedClient.phone || '-'}
+                </a>
+              </div>
+
+              {/* Address */}
+              {selectedClient.address && (
+                <div className="bg-slate-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-1">
+                    <MapPin className="w-4 h-4 text-emerald-600" />
+                    <label className="text-xs font-semibold text-slate-600 uppercase">Dirección</label>
+                  </div>
+                  <p className="text-slate-900 text-sm break-all">{selectedClient.address}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4 border-t border-slate-200">
+                <button
+                  onClick={() => handleOpenForm(selectedClient)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-sm font-medium"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Editar
+                </button>
+                <button
+                  onClick={() => handleDelete(selectedClient.id)}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
+
+      {/* Form Modal */}
+      {showForm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-md mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <h2 className="text-xl font-semibold text-slate-900">
+                {editingClient ? 'Editar Cliente' : 'Nuevo Cliente'}
+              </h2>
+              <button
+                onClick={handleCloseForm}
+                className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+              {/* Name */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Nombre *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  placeholder="Nombre del cliente"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                  required
+                />
+              </div>
+
+              {/* NIF */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  NIF/DNI
+                </label>
+                <input
+                  type="text"
+                  name="nif"
+                  value={formData.nif}
+                  onChange={handleInputChange}
+                  placeholder="NIF o DNI del cliente"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  placeholder="email@ejemplo.com"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Teléfono
+                </label>
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  placeholder="Teléfono del cliente"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Dirección
+                </label>
+                <textarea
+                  name="address"
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  placeholder="Dirección completa del cliente"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={handleCloseForm}
+                  className="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-4 py-2 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors font-medium"
+                >
+                  {editingClient ? 'Guardar Cambios' : 'Crear Cliente'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -571,9 +967,9 @@ export default function App() {
           />
         )}
         {activeTab === 'calendar' && <Calendar sessions={sessions} courses={courses} />}
-        {activeTab === 'clients' && <ClientManagement clients={clients} />}
+        {activeTab === 'clients' && <ClientManagement clients={clients} onAdd={addClient} onUpdate={updateClient} onDelete={deleteClient} />}
         {activeTab === 'integrations' && <Integrations />}
-        {activeTab === 'settings' && <Settings settings={settings} userId={user.id} />}
+        {activeTab === 'settings' && <Settings settings={settings} userId={user.id} user={user} setUser={setUser} />}
         {activeTab === 'new-course' && (
           <CourseFormView 
             userId={user.id} 
@@ -787,15 +1183,152 @@ function Invoices(props: {
   const totalAmount = useMemo(() => {
     if (!selectedCourse) return 0;
     if (selectedCourse.pricingType === 'total') return selectedCourse.price;
-    
+
     const hours = courseSessions.reduce((acc, s) => {
       const start = parseISO(`${s.date}T${s.startTime}`);
       const end = parseISO(`${s.date}T${s.endTime}`);
       return acc + differenceInHours(end, start);
     }, 0);
-    
+
     return hours * selectedCourse.price;
   }, [selectedCourse, courseSessions]);
+
+  const invoiceNumber = useMemo(() => `FAC-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`, [selectedCourseId]);
+
+  const generatePDF = () => {
+    if (!selectedCourse) return;
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const pageW = pdf.internal.pageSize.getWidth();
+    let y = 20;
+
+    // Header bar
+    pdf.setFillColor(16, 185, 129); // emerald-500
+    pdf.rect(0, 0, pageW, 14, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(11);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('FACTURA', 14, 9.5);
+    pdf.text(invoiceNumber, pageW - 14, 9.5, { align: 'right' });
+
+    y = 28;
+    pdf.setTextColor(30, 30, 30);
+
+    // Teacher info
+    pdf.setFontSize(14);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(user.name || 'Docente', 14, y);
+    y += 6;
+    pdf.setFontSize(9);
+    pdf.setFont('helvetica', 'normal');
+    pdf.setTextColor(100, 100, 100);
+    pdf.text(user.email || '', 14, y);
+    if (settings?.bankAccount) { y += 5; pdf.text(`IBAN: ${settings.bankAccount}`, 14, y); }
+
+    // Date
+    pdf.setTextColor(100, 100, 100);
+    pdf.text(`Fecha: ${format(new Date(), 'd MMM yyyy', { locale: es })}`, pageW - 14, 28, { align: 'right' });
+
+    // Divider
+    y += 10;
+    pdf.setDrawColor(220, 220, 220);
+    pdf.line(14, y, pageW - 14, y);
+    y += 10;
+
+    // Client / course info
+    pdf.setTextColor(30, 30, 30);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('FACTURAR A', 14, y);
+    y += 5;
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(selectedCourse.entity, 14, y);
+    y += 5;
+    pdf.text(`Curso: ${selectedCourse.name}`, 14, y);
+    y += 5;
+    pdf.text(`Modalidad: ${selectedCourse.modality}  |  Localización: ${selectedCourse.location || '—'}`, 14, y);
+    y += 5;
+    pdf.text(`Periodo: ${format(parseISO(selectedCourse.startDate), 'd MMM yyyy', { locale: es })} – ${format(parseISO(selectedCourse.endDate), 'd MMM yyyy', { locale: es })}`, 14, y);
+
+    // Sessions table header
+    y += 12;
+    pdf.setFillColor(245, 247, 250);
+    pdf.rect(14, y - 5, pageW - 28, 8, 'F');
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.setTextColor(80, 80, 80);
+    pdf.text('Fecha', 16, y);
+    pdf.text('Inicio', 65, y);
+    pdf.text('Fin', 90, y);
+    pdf.text('Horas', 115, y);
+    pdf.text('Contenido', 135, y);
+    y += 6;
+    pdf.setDrawColor(220, 220, 220);
+    pdf.line(14, y, pageW - 14, y);
+
+    // Sessions rows
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(8.5);
+    pdf.setTextColor(40, 40, 40);
+    let totalHours = 0;
+    courseSessions.forEach((s, idx) => {
+      y += 6;
+      if (y > 265) { pdf.addPage(); y = 20; }
+      if (idx % 2 === 0) { pdf.setFillColor(252, 252, 252); pdf.rect(14, y - 4, pageW - 28, 6, 'F'); }
+      const hrs = differenceInHours(parseISO(`${s.date}T${s.endTime}`), parseISO(`${s.date}T${s.startTime}`));
+      totalHours += hrs;
+      pdf.text(format(parseISO(s.date), 'd MMM yyyy', { locale: es }), 16, y);
+      pdf.text(s.startTime, 65, y);
+      pdf.text(s.endTime, 90, y);
+      pdf.text(`${hrs}h`, 115, y);
+      pdf.text((s.content || '—').slice(0, 35), 135, y);
+    });
+
+    // Totals
+    y += 12;
+    pdf.setDrawColor(220, 220, 220);
+    pdf.line(14, y, pageW - 14, y);
+    y += 8;
+    pdf.setFont('helvetica', 'normal');
+    pdf.setFontSize(9);
+    pdf.setTextColor(80, 80, 80);
+    if (selectedCourse.pricingType === 'hourly') {
+      pdf.text(`Total horas: ${totalHours}h  ×  ${selectedCourse.price}€/h`, pageW - 14, y, { align: 'right' });
+      y += 6;
+    }
+    const tax = totalAmount * 0.21;
+    const subtotal = totalAmount;
+    pdf.text(`Base imponible: ${subtotal.toFixed(2)}€`, pageW - 14, y, { align: 'right' });
+    y += 6;
+    pdf.text(`IVA (21%): ${tax.toFixed(2)}€`, pageW - 14, y, { align: 'right' });
+    y += 8;
+    pdf.setFillColor(16, 185, 129);
+    pdf.rect(pageW - 70, y - 6, 56, 10, 'F');
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(11);
+    pdf.text(`TOTAL: ${(subtotal + tax).toFixed(2)}€`, pageW - 14, y + 1, { align: 'right' });
+
+    pdf.save(`factura_${invoiceNumber}.pdf`);
+  };
+
+  const sendByEmail = () => {
+    if (!selectedCourse) return;
+    const tax = totalAmount * 0.21;
+    const subject = encodeURIComponent(`Factura ${invoiceNumber} - ${selectedCourse.name}`);
+    const body = encodeURIComponent(
+      `Estimado/a,\n\nAdjunto encontrará la factura correspondiente al curso "${selectedCourse.name}".\n\n` +
+      `N.º Factura: ${invoiceNumber}\n` +
+      `Curso: ${selectedCourse.name}\n` +
+      `Entidad: ${selectedCourse.entity}\n` +
+      `Periodo: ${format(parseISO(selectedCourse.startDate), 'd MMM yyyy', { locale: es })} – ${format(parseISO(selectedCourse.endDate), 'd MMM yyyy', { locale: es })}\n` +
+      `Sesiones: ${courseSessions.length}\n` +
+      `Base imponible: ${totalAmount.toFixed(2)}€\n` +
+      `IVA (21%): ${tax.toFixed(2)}€\n` +
+      `TOTAL: ${(totalAmount + tax).toFixed(2)}€\n\n` +
+      `Un saludo,\n${user.name}`
+    );
+    window.open(`mailto:?subject=${subject}&body=${body}`);
+  };
 
   if (showPreview && selectedCourse) {
     return (
@@ -873,16 +1406,20 @@ function Invoices(props: {
           )}
 
           <div className="flex gap-4">
-            <button 
+            <button
+              onClick={generatePDF}
               disabled={!selectedCourseId}
-              className="flex-1 py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:shadow-none"
+              className="flex-1 flex items-center justify-center gap-2 py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
             >
+              <Download className="w-5 h-5" />
               Generar PDF de Factura
             </button>
-            <button 
+            <button
+              onClick={sendByEmail}
               disabled={!selectedCourseId}
-              className="flex-1 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-100 disabled:opacity-50 disabled:shadow-none"
+              className="flex-1 flex items-center justify-center gap-2 py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-100 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed"
             >
+              <Mail className="w-5 h-5" />
               Enviar por Email
             </button>
           </div>
@@ -944,6 +1481,8 @@ function InvoiceEditor({
     phone: '',
     email: ''
   });
+
+  const [showInvoicePreview, setShowInvoicePreview] = useState(false);
 
   useEffect(() => {
     const safeClients = clients || [];
@@ -1082,13 +1621,13 @@ function InvoiceEditor({
     setItems(newItems);
   };
 
-  const invoiceRef = useRef<HTMLDivElement>(null);
+  const invoiceContainerRef = useRef<HTMLDivElement>(null);
 
   const downloadPDF = async () => {
-    const input = invoiceRef.current;
+    const input = invoiceContainerRef.current;
     if (!input) return;
 
-    const canvas = await html2canvas(input, { scale: 2 });
+    const canvas = await html2canvas(input, { scale: 2, useCORS: true });
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('p', 'mm', 'a4');
     const imgProps = pdf.getImageProperties(imgData);
@@ -1099,17 +1638,45 @@ function InvoiceEditor({
     pdf.save(`factura_${invoiceNumber}.pdf`);
   };
 
+  const viewInvoiceInNewWindow = () => {
+    setShowInvoicePreview(true);
+  };
+
   return (
-    <div className="max-w-5xl mx-auto space-y-6 pb-20" ref={invoiceRef}>
-      <div className="flex items-center justify-between no-print px-4">
-        <div></div>
+    <div className="max-w-5xl mx-auto space-y-6 pb-20">
+      <div className="flex items-center justify-between px-4">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Volver
+        </button>
         <div className="flex gap-3">
+          {!showInvoicePreview && (
+            <button 
+              onClick={viewInvoiceInNewWindow}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
+            >
+              <Eye className="w-4 h-4" />
+              Ver Factura
+            </button>
+          )}
+          {showInvoicePreview && (
+            <button 
+              onClick={() => setShowInvoicePreview(false)}
+              className="flex items-center gap-2 px-4 py-2 bg-slate-600 text-white rounded-xl font-bold hover:bg-slate-700 transition-all shadow-lg shadow-slate-100"
+            >
+              <Edit2 className="w-4 h-4" />
+              Editar
+            </button>
+          )}
           <button 
             onClick={() => setActiveTab('clients')}
             className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-all"
           >
             <Users className="w-4 h-4" />
-            Gestión de clientes
+            Clientes
           </button>
           <button 
             onClick={downloadPDF}
@@ -1121,7 +1688,9 @@ function InvoiceEditor({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 no-print px-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+      {!showInvoicePreview ? (
+        // ZONA DE CONFIGURACIÓN
+        <div className="flex flex-col gap-3 px-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
         <div className="flex items-center justify-between p-4 rounded-xl bg-white">
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-2">
@@ -1336,8 +1905,10 @@ function InvoiceEditor({
           </div>
         </div>
       </div>
-
-      <div className="a4-container" id="invoice-capture">
+      ) : (
+        // ZONA DE VISTA PREVIA DE FACTURA
+        <div className="w-full bg-slate-50 p-4 rounded-xl min-h-screen flex items-center justify-center">
+      <div className="a4-container" ref={invoiceContainerRef}>
         <div className="flex flex-col min-h-full">
           <div className="flex-1 space-y-2">
             {/* Header */}
@@ -1529,8 +2100,11 @@ function InvoiceEditor({
               <p className="mt-2 font-black text-slate-900 not-italic text-xs">{emisorName}</p>
           </div>
         </div>
-        </div>
+
+    </div>
       </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1701,14 +2275,25 @@ function HoursView({ courses, sessions }: { courses: Course[], sessions: Session
   );
 }
 
-function Dashboard({ stats, onAnalyzeConflicts, scheduleAnalysis, setActiveTab, sessions, courses }: { 
-  stats: DashboardStats, 
+function Dashboard({ stats, onAnalyzeConflicts, scheduleAnalysis, setActiveTab, sessions, courses }: {
+  stats: DashboardStats,
   onAnalyzeConflicts: () => void,
   scheduleAnalysis: { conflicts: { type: string, message: string, date: string, solution: string }[], summary: string } | null,
   setActiveTab: (tab: 'dashboard' | 'income' | 'hours' | 'courses' | 'invoices' | 'calendar' | 'settings' | 'integrations' | 'clients') => void,
   sessions: Session[],
   courses: Course[]
 }) {
+  const today = new Date();
+  const todayStr = format(today, 'yyyy-MM-dd');
+
+  const sessionHours = (s: Session) => {
+    try {
+      const [sh, sm] = s.startTime.split(':').map(Number);
+      const [eh, em] = s.endTime.split(':').map(Number);
+      return Math.max(0, ((eh * 60 + em) - (sh * 60 + sm)) / 60);
+    } catch { return 0; }
+  };
+
   const conflictStats = useMemo(() => {
     if (!scheduleAnalysis) return null;
     const conflicts = scheduleAnalysis.conflicts || [];
@@ -1718,71 +2303,330 @@ function Dashboard({ stats, onAnalyzeConflicts, scheduleAnalysis, setActiveTab, 
     };
   }, [scheduleAnalysis]);
 
+  const courseMap = useMemo(() => Object.fromEntries(courses.map(c => [c.id, c])), [courses]);
+
+  const upcomingCourses = useMemo(() =>
+    courses.filter(c => c.status !== 'finalizado' && c.endDate >= todayStr)
+      .sort((a, b) => a.startDate.localeCompare(b.startDate)).slice(0, 4),
+    [courses, todayStr]);
+
+  const upcomingSessions = useMemo(() =>
+    sessions.filter(s => s.date >= todayStr && s.status === 'pendiente')
+      .sort((a, b) => a.date.localeCompare(b.date) || a.startTime.localeCompare(b.startTime)).slice(0, 5),
+    [sessions, todayStr]);
+
+  const recentSessions = useMemo(() =>
+    sessions.filter(s => s.date < todayStr && s.status === 'impartida')
+      .sort((a, b) => b.date.localeCompare(a.date)).slice(0, 3),
+    [sessions, todayStr]);
+
+  // ── Gráfico de ingresos: últimos 6 meses ──
+  const incomeByMonth = useMemo(() => {
+    return Array.from({ length: 6 }, (_, i) => {
+      const d = subMonths(today, 5 - i);
+      const monthStr = format(d, 'yyyy-MM');
+      const income = courses
+        .filter(c => c.startDate.startsWith(monthStr))
+        .reduce((sum, c) => sum + (c.pricingType === 'hourly' ? c.price * c.totalHours : c.price), 0);
+      return { label: format(d, 'MMM', { locale: es }), income };
+    });
+  }, [courses]);
+
+  const maxIncome = Math.max(...incomeByMonth.map(m => m.income), 1);
+
+  // ── Carga semanal: horas de sesión por día esta semana ──
+  const weekDays = useMemo(() => {
+    const monday = startOfWeek(today, { weekStartsOn: 1 });
+    return Array.from({ length: 7 }, (_, i) => {
+      const day = addDays(monday, i);
+      const dayStr = format(day, 'yyyy-MM-dd');
+      const hours = sessions
+        .filter(s => s.date === dayStr)
+        .reduce((sum, s) => sum + sessionHours(s), 0);
+      return { label: format(day, 'EEE', { locale: es }), dayStr, hours, isToday: dayStr === todayStr };
+    });
+  }, [sessions, todayStr]);
+
+  const maxWeekHours = Math.max(...weekDays.map(d => d.hours), 1);
+
+  // ── Progreso de cursos activos ──
+  const courseProgress = useMemo(() =>
+    courses
+      .filter(c => c.status !== 'finalizado')
+      .map(c => {
+        const all = sessions.filter(s => s.courseId === c.id);
+        const done = all.filter(s => s.status === 'impartida').length;
+        const total = all.length;
+        const hoursLogged = sessions.filter(s => s.courseId === c.id && s.status === 'impartida').reduce((sum, s) => sum + sessionHours(s), 0);
+        const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+        return { course: c, done, total, pct, hoursLogged };
+      })
+      .sort((a, b) => b.pct - a.pct)
+      .slice(0, 5),
+    [courses, sessions]);
+
+  const statusColors: Record<string, string> = {
+    pendiente: 'bg-amber-100 text-amber-700',
+    confirmado: 'bg-emerald-100 text-emerald-700',
+    finalizado: 'bg-slate-100 text-slate-500',
+  };
+
+  const kpis = [
+    { label: 'Horas semana', value: `${stats.hoursThisWeek}h`, icon: Clock, color: 'bg-blue-500', sub: `${stats.hoursThisMonth}h este mes`, tab: 'hours' as const },
+    { label: 'Ingresos mes', value: `${stats.incomeThisMonth.toLocaleString('es-ES')}€`, icon: Euro, color: 'bg-emerald-500', sub: `${stats.incomeThisYear.toLocaleString('es-ES')}€ este año`, tab: 'income' as const },
+    { label: 'Cursos activos', value: stats.activeCourses, icon: BookOpen, color: 'bg-violet-500', sub: `${stats.upcomingCourses} próximos`, tab: 'courses' as const },
+    { label: 'Conflictos', value: conflictStats ? (conflictStats.errors + conflictStats.warnings === 0 ? '✓ OK' : `${conflictStats.errors + conflictStats.warnings}`) : '—', icon: AlertTriangle, color: conflictStats ? (conflictStats.errors > 0 ? 'bg-red-500' : conflictStats.warnings > 0 ? 'bg-amber-500' : 'bg-emerald-500') : 'bg-slate-400', sub: conflictStats ? (conflictStats.errors > 0 ? `${conflictStats.errors} críticos` : conflictStats.warnings > 0 ? `${conflictStats.warnings} avisos` : 'Sin problemas') : 'Toca para analizar', tab: null as any, onClick: onAnalyzeConflicts },
+  ];
+
   return (
-    <div 
-      className="space-y-8 p-8 rounded-3xl shadow-inner"
-    >
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
-        <StatCard 
-          label="Horas esta semana" 
-          value={`${stats.hoursThisWeek}h`} 
-          icon={Clock} 
-          color="bg-blue-500" 
-          trend="+12% vs semana pasada" 
-          bgImage="https://images.unsplash.com/photo-1434030216411-0b793f4b4173?q=80&w=2070&auto=format&fit=crop" 
-          onClick={() => setActiveTab('hours')} 
-          className="h-full"
-          bgColor="#cc42a6"
-        />
-        <StatCard 
-          label="Ingresos este mes" 
-          value={`${stats.incomeThisMonth}€`} 
-          icon={Euro} 
-          color="bg-emerald-500" 
-          trend="+5% vs mes pasado" 
-          bgImage="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=2070&auto=format&fit=crop" 
-          onClick={() => setActiveTab('income')} 
-          className="h-full"
-          bgColor="#8cd9df"
-        />
-        <StatCard 
-          label="Cursos activos" 
-          value={stats.activeCourses} 
-          icon={BookOpen} 
-          color="bg-violet-500" 
-          bgImage="https://images.unsplash.com/photo-1524178232363-1fb2b075b655?q=80&w=2070&auto=format&fit=crop"
-          onClick={() => setActiveTab('courses')}
-          className="h-full"
-          bgColor="#d6cfa8"
-        />
-        <StatCard 
-          label="Conflictos" 
-          value={conflictStats 
-            ? (conflictStats.errors > 0 || conflictStats.warnings > 0 
-                ? `${conflictStats.errors} Críticos / ${conflictStats.warnings} Avisos` 
-                : "Sin conflictos")
-            : "Click para analizar"} 
-          icon={AlertTriangle} 
-          color={conflictStats 
-            ? (conflictStats.errors > 0 ? "bg-red-500" : conflictStats.warnings > 0 ? "bg-amber-500" : "bg-emerald-500")
-            : "bg-slate-400"} 
-          onClick={onAnalyzeConflicts}
-          bgImage="https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?q=80&w=2070&auto=format&fit=crop"
-          className="h-full"
-          bgColor="#fe5151"
-        />
-        <StatCard 
-          label="Clientes" 
-          value="Gestionar" 
-          icon={Users} 
-          color="bg-slate-500" 
-          onClick={() => setActiveTab('clients')}
-          bgImage="https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=2070&auto=format&fit=crop"
-          className="h-full"
-          bgColor="#c9afaf"
-        />
+    <div className="space-y-4">
+
+      {/* ── KPIs: 2 cols móvil, 4 cols tablet+ ── */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {kpis.map(k => (
+          <div key={k.label}
+            onClick={k.onClick ?? (k.tab ? () => setActiveTab(k.tab) : undefined)}
+            className="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] sm:text-xs font-semibold text-slate-400 uppercase tracking-wide leading-tight">{k.label}</span>
+              <div className={cn("w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center flex-shrink-0", k.color)}>
+                <k.icon className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
+              </div>
+            </div>
+            <p className="text-xl sm:text-2xl font-black text-slate-900">{k.value}</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">{k.sub}</p>
+          </div>
+        ))}
       </div>
+
+      {/* ── Gráfico ingresos + Carga semanal: apilados móvil, 2/3+1/3 desktop ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        {/* Gráfico de ingresos (últimos 6 meses) */}
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm sm:text-base">
+              <Euro className="w-4 h-4 text-emerald-500" /> Ingresos últimos 6 meses
+            </h3>
+            <button onClick={() => setActiveTab('income')} className="text-xs font-semibold text-emerald-600 hover:text-emerald-700">Ver más →</button>
+          </div>
+          <div className="flex items-end gap-2 h-28 sm:h-36">
+            {incomeByMonth.map((m, i) => {
+              const barH = maxIncome > 0 ? Math.max((m.income / maxIncome) * 100, m.income > 0 ? 8 : 0) : 0;
+              const isLast = i === incomeByMonth.length - 1;
+              return (
+                <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+                  {m.income > 0 && (
+                    <span className="text-[9px] sm:text-[10px] font-bold text-emerald-600 leading-none">
+                      {m.income >= 1000 ? `${(m.income/1000).toFixed(1)}k` : m.income}€
+                    </span>
+                  )}
+                  <div className="w-full flex items-end" style={{ height: '100%' }}>
+                    <div
+                      className={cn("w-full rounded-t-lg transition-all", isLast ? "bg-emerald-500" : "bg-emerald-200")}
+                      style={{ height: `${barH}%`, minHeight: m.income > 0 ? '4px' : '0' }}
+                    />
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-slate-400 capitalize">{m.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          {incomeByMonth.every(m => m.income === 0) && (
+            <p className="text-xs text-slate-400 text-center mt-2">Sin ingresos registrados aún</p>
+          )}
+        </div>
+
+        {/* Carga semanal */}
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <h3 className="font-bold text-slate-900 mb-4 flex items-center gap-2 text-sm sm:text-base">
+            <Clock className="w-4 h-4 text-blue-500" /> Carga esta semana
+          </h3>
+          <div className="flex items-end gap-1.5 h-28 sm:h-36">
+            {weekDays.map(d => {
+              const barH = d.hours > 0 ? Math.max((d.hours / maxWeekHours) * 100, 10) : 0;
+              return (
+                <div key={d.dayStr} className="flex-1 flex flex-col items-center gap-1">
+                  {d.hours > 0 && (
+                    <span className={cn("text-[9px] font-bold leading-none", d.isToday ? "text-blue-600" : "text-slate-500")}>
+                      {d.hours % 1 === 0 ? d.hours : d.hours.toFixed(1)}h
+                    </span>
+                  )}
+                  <div className="w-full flex items-end" style={{ height: '100%' }}>
+                    <div
+                      className={cn("w-full rounded-t-md transition-all", d.isToday ? "bg-blue-500" : d.hours > 0 ? "bg-blue-200" : "bg-slate-100")}
+                      style={{ height: d.hours > 0 ? `${barH}%` : '4px', minHeight: '4px' }}
+                    />
+                  </div>
+                  <span className={cn("text-[9px] sm:text-[10px] font-semibold capitalize", d.isToday ? "text-blue-600" : "text-slate-400")}>
+                    {d.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-400">
+            <span>Total semana</span>
+            <span className="font-bold text-slate-700">{weekDays.reduce((s, d) => s + d.hours, 0).toFixed(1)}h</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Progreso de cursos: full width ── */}
+      {courseProgress.length > 0 && (
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm sm:text-base">
+              <TrendingUp className="w-4 h-4 text-violet-500" /> Progreso de cursos
+            </h3>
+            <button onClick={() => setActiveTab('courses')} className="text-xs font-semibold text-violet-600 hover:text-violet-700">Ver todos →</button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {courseProgress.map(({ course: c, done, total, pct, hoursLogged }) => (
+              <div key={c.id} className="space-y-2 p-3 bg-slate-50 rounded-xl">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-0.5" style={{ backgroundColor: c.color || '#8b5cf6' }} />
+                    <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate leading-tight">{c.name}</p>
+                  </div>
+                  <span className="text-xs font-black text-violet-600 flex-shrink-0">{pct}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-1.5">
+                  <div
+                    className="h-1.5 rounded-full transition-all"
+                    style={{ width: `${pct}%`, backgroundColor: c.color || '#8b5cf6' }}
+                  />
+                </div>
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span>{done}/{total} sesiones</span>
+                  <span>{hoursLogged.toFixed(1)}h impartidas</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Próximos cursos + Próximas sesiones: apilados móvil, 2 cols tablet+ ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm sm:text-base">
+              <BookOpen className="w-4 h-4 text-violet-500" /> Próximos cursos
+            </h3>
+            <button onClick={() => setActiveTab('courses')} className="text-xs font-semibold text-violet-600">Ver todos →</button>
+          </div>
+          {upcomingCourses.length === 0 ? (
+            <div className="text-center py-5 text-slate-400">
+              <BookOpen className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
+              <p className="text-xs">No hay cursos próximos</p>
+              <button onClick={() => setActiveTab('courses')} className="mt-1.5 text-xs font-semibold text-violet-600 hover:underline">Crear curso</button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {upcomingCourses.map(c => (
+                <div key={c.id} className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: c.color || '#8b5cf6' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{c.name}</p>
+                    <p className="text-[10px] sm:text-xs text-slate-400">{c.entity} · {format(parseISO(c.startDate), 'd MMM', { locale: es })}</p>
+                  </div>
+                  <span className={cn("text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full capitalize flex-shrink-0", statusColors[c.status])}>{c.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-sm sm:text-base">
+              <CalendarIcon className="w-4 h-4 text-blue-500" /> Próximas sesiones
+            </h3>
+            <button onClick={() => setActiveTab('calendar')} className="text-xs font-semibold text-blue-600">Calendario →</button>
+          </div>
+          {upcomingSessions.length === 0 ? (
+            <div className="text-center py-5 text-slate-400">
+              <CalendarIcon className="w-7 h-7 mx-auto mb-1.5 opacity-30" />
+              <p className="text-xs">No hay sesiones pendientes</p>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {upcomingSessions.map(s => {
+                const course = courseMap[s.courseId];
+                return (
+                  <div key={s.id} className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-slate-50 transition-colors">
+                    <div className="text-center flex-shrink-0 w-8">
+                      <p className="text-xs font-bold text-blue-600 leading-none">{format(parseISO(s.date), 'd')}</p>
+                      <p className="text-[9px] text-slate-400 uppercase">{format(parseISO(s.date), 'MMM', { locale: es })}</p>
+                    </div>
+                    <div className="w-px h-7 bg-slate-100 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{course?.name || 'Sesión'}</p>
+                      <p className="text-[10px] text-slate-400">{s.startTime} – {s.endTime}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Sesiones recientes + Acceso rápido: apilados móvil, 2/3+1/3 desktop ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+        <div className="md:col-span-2 bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm sm:text-base">
+            <CheckCircle2 className="w-4 h-4 text-emerald-500" /> Sesiones recientes
+          </h3>
+          {recentSessions.length === 0 ? (
+            <p className="text-xs text-slate-400 text-center py-4">Sin sesiones impartidas aún</p>
+          ) : (
+            <div className="space-y-1.5">
+              {recentSessions.map(s => {
+                const course = courseMap[s.courseId];
+                const h = sessionHours(s);
+                return (
+                  <div key={s.id} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs sm:text-sm font-semibold text-slate-900 truncate">{course?.name || 'Sesión'}</p>
+                      <p className="text-[10px] text-slate-400">{format(parseISO(s.date), "d 'de' MMMM", { locale: es })}</p>
+                    </div>
+                    {h > 0 && <span className="text-xs font-bold text-emerald-600 flex-shrink-0">{h}h</span>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5">
+          <h3 className="font-bold text-slate-900 mb-3 flex items-center gap-2 text-sm sm:text-base">
+            <TrendingUp className="w-4 h-4 text-slate-500" /> Acceso rápido
+          </h3>
+          {/* móvil: grid 2 cols; md+: lista vertical */}
+          <div className="grid grid-cols-2 md:grid-cols-1 gap-2">
+            {[
+              { label: 'Nuevo curso', icon: BookOpen, color: 'text-violet-600 bg-violet-50 hover:bg-violet-100', tab: 'new-course' as any },
+              { label: 'Calendario', icon: CalendarIcon, color: 'text-blue-600 bg-blue-50 hover:bg-blue-100', tab: 'calendar' as const },
+              { label: 'Clientes', icon: Users, color: 'text-slate-600 bg-slate-50 hover:bg-slate-100', tab: 'clients' as const },
+              { label: 'Nueva factura', icon: Euro, color: 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100', tab: 'invoices' as const },
+              { label: 'Conflictos', icon: AlertTriangle, color: 'text-amber-600 bg-amber-50 hover:bg-amber-100', onClick: onAnalyzeConflicts },
+            ].map(item => (
+              <button key={item.label}
+                onClick={item.onClick ?? (() => setActiveTab(item.tab))}
+                className={cn("flex items-center gap-2 px-3 py-2.5 rounded-xl font-semibold text-xs sm:text-sm transition-all", item.color)}>
+                <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -2131,36 +2975,269 @@ function CourseManagement({ courses, sessions, userId, onEditCourse }: { courses
   );
 }
 
+const CALENDAR_SETTINGS_KEY = 'calendarSettings';
+
+const CAL_COLORS = [
+  { name: 'orange',  bg: 'bg-orange-50',  border: 'border-orange-200',  text: 'text-orange-700',  dot: 'bg-orange-400',  label: 'Naranja'  },
+  { name: 'red',     bg: 'bg-red-50',     border: 'border-red-200',     text: 'text-red-700',     dot: 'bg-red-400',     label: 'Rojo'     },
+  { name: 'pink',    bg: 'bg-pink-50',    border: 'border-pink-200',    text: 'text-pink-700',    dot: 'bg-pink-400',    label: 'Rosa'     },
+  { name: 'purple',  bg: 'bg-purple-50',  border: 'border-purple-200',  text: 'text-purple-700',  dot: 'bg-purple-400',  label: 'Morado'   },
+  { name: 'sky',     bg: 'bg-sky-50',     border: 'border-sky-200',     text: 'text-sky-700',     dot: 'bg-sky-400',     label: 'Celeste'  },
+  { name: 'teal',    bg: 'bg-teal-50',    border: 'border-teal-200',    text: 'text-teal-700',    dot: 'bg-teal-400',    label: 'Verde'    },
+  { name: 'yellow',  bg: 'bg-yellow-50',  border: 'border-yellow-200',  text: 'text-yellow-700',  dot: 'bg-yellow-400',  label: 'Amarillo' },
+  { name: 'slate',   bg: 'bg-slate-100',  border: 'border-slate-200',   text: 'text-slate-600',   dot: 'bg-slate-400',   label: 'Gris'     },
+];
+
+function getCalColor(name?: string) {
+  return CAL_COLORS.find(c => c.name === name) ?? CAL_COLORS[0];
+}
+
+function loadCalendarSettings(): CalendarSettings {
+  try {
+    const raw = localStorage.getItem(CALENDAR_SETTINGS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return {
+        highlightWeekends: parsed.highlightWeekends ?? true,
+        holidays: Array.isArray(parsed.holidays) ? parsed.holidays : [],
+        vacations: Array.isArray(parsed.vacations) ? parsed.vacations : [],
+      };
+    }
+  } catch {}
+  return { highlightWeekends: true, holidays: [], vacations: [] };
+}
+
+function saveCalendarSettings(s: CalendarSettings) {
+  localStorage.setItem(CALENDAR_SETTINGS_KEY, JSON.stringify(s));
+}
+
+function icsDate(date: string, time?: string) {
+  const d = date.replace(/-/g, '');
+  if (!time) return d;
+  return `${d}T${time.replace(':', '')}00`;
+}
+
+function buildICS(courses: Course[], sessions: Session[], holidays: Holiday[]): string {
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//DocentePro//Calendario Docente//ES',
+    'X-WR-CALNAME:Calendario Docente',
+    'X-WR-TIMEZONE:Europe/Madrid',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+  ];
+
+  courses.forEach(c => {
+    const uid = `course-${c.id}@docentepro`;
+    const dtstart = c.startTime
+      ? `DTSTART:${icsDate(c.startDate, c.startTime)}`
+      : `DTSTART;VALUE=DATE:${icsDate(c.startDate)}`;
+    const endDate = c.endTime && c.startDate === c.endDate
+      ? `DTEND:${icsDate(c.endDate, c.endTime)}`
+      : `DTEND;VALUE=DATE:${icsDate(c.endDate)}`;
+    const desc = [
+      c.entity ? `Entidad: ${c.entity}` : '',
+      c.modality ? `Modalidad: ${c.modality}` : '',
+      c.location ? `Lugar: ${c.location}` : '',
+      c.schedule ? `Días: ${c.schedule}` : '',
+      c.startTime ? `Horario: ${c.startTime}${c.endTime ? `–${c.endTime}` : ''}` : '',
+      `Horas totales: ${c.totalHours}h`,
+      `Estado: ${c.status}`,
+    ].filter(Boolean).join('\\n');
+    lines.push('BEGIN:VEVENT', `UID:${uid}`, dtstart, endDate, `SUMMARY:${c.name}`, `DESCRIPTION:${desc}`, 'END:VEVENT');
+  });
+
+  sessions.forEach(s => {
+    const course = courses.find(c => c.id === s.courseId);
+    const uid = `session-${s.id}@docentepro`;
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:${uid}`,
+      `DTSTART:${icsDate(s.date, s.startTime)}`,
+      `DTEND:${icsDate(s.date, s.endTime)}`,
+      `SUMMARY:${course?.name ?? 'Sesión'}`,
+      `DESCRIPTION:${s.content ?? ''}`,
+      'END:VEVENT'
+    );
+  });
+
+  holidays.forEach(h => {
+    const uid = `holiday-${h.date}@docentepro`;
+    const d = h.date.replace(/-/g, '');
+    lines.push('BEGIN:VEVENT', `UID:${uid}`, `DTSTART;VALUE=DATE:${d}`, `DTEND;VALUE=DATE:${d}`, `SUMMARY:🎉 ${h.name}`, 'END:VEVENT');
+  });
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
 function Calendar({ sessions, courses, small = false }: { sessions: Session[], courses: Course[], small?: boolean }) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  
+  const [calSettings, setCalSettings] = useState<CalendarSettings>(loadCalendarSettings);
+  const [showSettings, setShowSettings] = useState(false);
+
+  // Re-sync from localStorage whenever settings modal closes
+  useEffect(() => {
+    if (!showSettings) {
+      setCalSettings(loadCalendarSettings());
+    }
+  }, [showSettings]);
+  const [newHolidayDate, setNewHolidayDate] = useState('');
+  const [newHolidayName, setNewHolidayName] = useState('');
+  const [newHolidayColor, setNewHolidayColor] = useState('orange');
+  const [newVacStart, setNewVacStart] = useState('');
+  const [newVacEnd, setNewVacEnd] = useState('');
+  const [newVacName, setNewVacName] = useState('');
+  const [newVacColor, setNewVacColor] = useState('sky');
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
   const days = useMemo(() => {
     const start = startOfMonth(currentDate);
     const end = endOfMonth(currentDate);
     const startW = startOfWeek(start, { weekStartsOn: 1 });
     const endW = addDays(startOfWeek(end, { weekStartsOn: 1 }), 6);
-    
     return eachDayOfInterval({ start: startW, end: endW });
   }, [currentDate]);
 
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
   const prevMonth = () => setCurrentDate(subMonths(currentDate, 1));
 
+  const updateSettings = (updated: CalendarSettings) => {
+    setCalSettings(updated);
+    saveCalendarSettings(updated);
+  };
+
+  const addHoliday = () => {
+    if (!newHolidayDate || !newHolidayName.trim()) return;
+    const updated = { ...calSettings, holidays: [...calSettings.holidays, { date: newHolidayDate, name: newHolidayName.trim(), color: newHolidayColor }] };
+    updateSettings(updated);
+    setNewHolidayDate('');
+    setNewHolidayName('');
+  };
+
+  const removeHoliday = (date: string) => {
+    updateSettings({ ...calSettings, holidays: calSettings.holidays.filter(h => h.date !== date) });
+  };
+
+  const addVacation = () => {
+    if (!newVacStart || !newVacEnd || !newVacName.trim()) return;
+    const vac: Vacation = { id: `${newVacStart}-${Date.now()}`, startDate: newVacStart, endDate: newVacEnd, name: newVacName.trim(), color: newVacColor };
+    updateSettings({ ...calSettings, vacations: [...(calSettings.vacations ?? []), vac] });
+    setNewVacStart(''); setNewVacEnd(''); setNewVacName('');
+  };
+
+  const removeVacation = (id: string) => {
+    updateSettings({ ...calSettings, vacations: (calSettings.vacations ?? []).filter(v => v.id !== id) });
+  };
+
+  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const text = ev.target?.result as string;
+      const newHolidays: Holiday[] = [];
+      text.split('\n').forEach(line => {
+        const parts = line.trim().split(/[,;]/);
+        if (parts.length < 2) return;
+        const date = parts[0].trim();
+        const name = parts.slice(1).join(',').trim().replace(/^"|"$/g, '');
+        if (/^\d{4}-\d{2}-\d{2}$/.test(date) && name) {
+          newHolidays.push({ date, name });
+        }
+      });
+      if (newHolidays.length > 0) {
+        const existing = calSettings.holidays.map(h => h.date);
+        const merged = [...calSettings.holidays, ...newHolidays.filter(h => !existing.includes(h.date))];
+        updateSettings({ ...calSettings, holidays: merged });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const exportToGoogleCalendar = () => {
+    const ics = buildICS(courses, sessions, calSettings.holidays);
+    const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'calendario-docente.ics';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const isWeekendDay = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
+  const getHoliday = (d: Date) => calSettings.holidays.find(h => h.date === format(d, 'yyyy-MM-dd'));
+
   return (
-    <div className={cn("bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden", small ? "p-4" : "p-6")}>
-      <div className={cn("border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4", small ? "pb-4" : "pb-6")}>
+    <div className={cn("bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden", small ? "p-3" : "p-4")}>
+      {/* Header */}
+      <div className={cn("border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3", small ? "pb-3" : "pb-4")}>
         <div>
-          <h3 className={cn("font-bold text-slate-900 uppercase tracking-tight", small ? "text-lg" : "text-xl")}>
+          <h3 className={cn("font-bold text-slate-900 uppercase tracking-tight", small ? "text-base" : "text-lg")}>
             {format(currentDate, 'MMMM yyyy', { locale: es })}
           </h3>
           {!small && (
-            <div className="flex flex-wrap gap-3 mt-2">
-              {(courses || []).filter(c => (sessions || []).some(s => s.courseId === c.id)).map(course => {
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-2">
+              {/* Cursos activos este mes */}
+              {(courses || []).filter(c => {
+                try {
+                  const mStart = startOfMonth(currentDate);
+                  const mEnd = endOfMonth(currentDate);
+                  return parseISO(c.startDate) <= mEnd && parseISO(c.endDate) >= mStart;
+                } catch { return false; }
+              }).map(course => {
                 const color = getCourseColor(course.color);
                 return (
                   <div key={course.id} className="flex items-center gap-1.5">
-                    <div className={cn("w-2 h-2 rounded-full", color.dot)} />
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{course.name}</span>
+                    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", color.dot)} />
+                    <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                      {course.name}{course.startTime ? ` · ${course.startTime}${course.endTime ? `–${course.endTime}` : ''}` : ''}
+                    </span>
+                  </div>
+                );
+              })}
+              {/* Fin de semana */}
+              {calSettings.highlightWeekends && (
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2.5 h-2.5 rounded-full bg-violet-400 shrink-0" />
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fin de semana</span>
+                </div>
+              )}
+              {/* Festivos del mes con su color individual */}
+              {calSettings.holidays.filter(h => {
+                try {
+                  const mStart = startOfMonth(currentDate);
+                  const mEnd = endOfMonth(currentDate);
+                  const d = parseISO(h.date);
+                  return d >= mStart && d <= mEnd;
+                } catch { return false; }
+              }).map(h => {
+                const c = getCalColor(h.color);
+                return (
+                  <div key={h.date} className="flex items-center gap-1.5">
+                    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", c.dot)} />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{h.name}</span>
+                  </div>
+                );
+              })}
+              {/* Vacaciones que se solapan con el mes */}
+              {(calSettings.vacations ?? []).filter(v => {
+                try {
+                  const mStart = startOfMonth(currentDate);
+                  const mEnd = endOfMonth(currentDate);
+                  return parseISO(v.startDate) <= mEnd && parseISO(v.endDate) >= mStart;
+                } catch { return false; }
+              }).map(v => {
+                const c = getCalColor(v.color);
+                return (
+                  <div key={v.id} className="flex items-center gap-1.5">
+                    <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", c.dot)} />
+                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      {v.name} · {format(parseISO(v.startDate), 'd MMM', { locale: es })}–{format(parseISO(v.endDate), 'd MMM', { locale: es })}
+                    </span>
                   </div>
                 );
               })}
@@ -2168,6 +3245,11 @@ function Calendar({ sessions, courses, small = false }: { sessions: Session[], c
           )}
         </div>
         <div className="flex gap-2">
+          {!small && (
+            <button onClick={() => setShowSettings(true)} className="p-2 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200" title="Configurar calendario">
+              <SettingsIcon className="w-4 h-4 text-slate-600" />
+            </button>
+          )}
           <button onClick={prevMonth} className="p-2 hover:bg-slate-50 rounded-xl transition-colors border border-slate-200">
             <ChevronLeft className="w-4 h-4 text-slate-600" />
           </button>
@@ -2176,42 +3258,101 @@ function Calendar({ sessions, courses, small = false }: { sessions: Session[], c
           </button>
         </div>
       </div>
-      
+
+      {/* Day headers */}
       <div className="grid grid-cols-7 border-b border-slate-100">
-        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => (
-          <div key={d} className={cn("py-2 text-center font-bold text-slate-400 uppercase tracking-widest", small ? "text-[10px]" : "text-xs")}>{small ? d[0] : d}</div>
+        {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((d, idx) => (
+          <div key={d} className={cn(
+            "py-2 text-center font-bold uppercase tracking-widest",
+            small ? "text-[10px]" : "text-xs",
+            (idx === 5 || idx === 6) && calSettings.highlightWeekends ? "text-violet-500" : "text-slate-400"
+          )}>{small ? d[0] : d}</div>
         ))}
       </div>
 
-      <div className={cn("grid grid-cols-7", small ? "auto-rows-[60px]" : "auto-rows-[120px]")}>
+      {/* Day cells */}
+      <div className={cn("grid grid-cols-7", small ? "auto-rows-[48px]" : "auto-rows-[112px]")}>
         {days.map((day, i) => {
           const daySessions = (sessions || []).filter(s => isSameDay(parseISO(s.date), day));
           const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-          
+          const isWeekend = isWeekendDay(day);
+          const holiday = getHoliday(day);
+          const vacation = (calSettings.vacations ?? []).find(v => {
+            try { return isWithinInterval(day, { start: parseISO(v.startDate), end: parseISO(v.endDate) }); }
+            catch { return false; }
+          });
+          const isNonWorking = isWeekend || !!holiday || !!vacation;
+          const holidayColor = holiday ? getCalColor(holiday.color) : null;
+          const vacColor = vacation ? getCalColor(vacation.color) : null;
+          const isVacStart = vacation ? isSameDay(day, parseISO(vacation.startDate)) : false;
+
+          const activeCourses = isNonWorking ? [] : (courses || []).filter(c => {
+            try { return isWithinInterval(day, { start: parseISO(c.startDate), end: parseISO(c.endDate) }); }
+            catch { return false; }
+          });
+
           return (
             <div key={i} className={cn(
-              "border-r border-b border-slate-100 p-1 transition-colors",
-              !isCurrentMonth && "bg-slate-50/50",
-              isSameDay(day, new Date()) && "bg-emerald-50/30"
+              "border-r border-b p-1 transition-colors",
+              !isCurrentMonth && "bg-slate-50/30 border-slate-100",
+              isCurrentMonth && !isNonWorking && "border-slate-100",
+              isCurrentMonth && isWeekend && !holiday && !vacation && calSettings.highlightWeekends && "bg-violet-50 border-violet-100",
+              vacation && vacColor && `${vacColor.bg} ${vacColor.border}`,
+              holiday && holidayColor && `${holidayColor.bg} ${holidayColor.border}`,
+              isSameDay(day, new Date()) && "bg-emerald-50/40"
             )}>
               <div className={cn(
                 "font-bold flex items-center justify-center rounded-full",
-                small ? "text-[10px] w-5 h-5" : "text-xs w-6 h-6 mb-2",
-                isSameDay(day, new Date()) ? "bg-emerald-600 text-white" : "text-slate-400"
+                small ? "text-[9px] w-4 h-4" : "text-[10px] w-5 h-5 mb-0.5",
+                isSameDay(day, new Date()) ? "bg-emerald-600 text-white"
+                  : holiday && holidayColor ? holidayColor.text
+                  : vacation && vacColor ? `${vacColor.text} font-black`
+                  : isWeekend && isCurrentMonth && calSettings.highlightWeekends ? "text-violet-500 font-black"
+                  : "text-slate-400"
               )}>
                 {format(day, 'd')}
               </div>
-              <div className={cn("space-y-0.5 overflow-y-auto scrollbar-hide", small ? "max-h-[30px]" : "max-h-[80px]")}>
-                {daySessions.map(s => {
-                  const course = (courses || []).find(c => c.id === s.courseId);
-                  const color = getCourseColor(course?.color);
+              {!small && holiday && holidayColor && (
+                <div className={cn("px-1 py-0.5 text-[9px] font-bold rounded-md truncate mb-0.5 border", holidayColor.text, holidayColor.bg, holidayColor.border)}>
+                  {holiday.name}
+                </div>
+              )}
+              {!small && vacation && vacColor && (isVacStart || day.getDate() === 1) && (
+                <div className={cn("px-1 py-0.5 text-[9px] font-bold rounded-md truncate mb-0.5 border", vacColor.text, vacColor.bg, vacColor.border)}>
+                  {vacation.name}
+                </div>
+              )}
+              {!small && isWeekend && !holiday && !vacation && calSettings.highlightWeekends && isCurrentMonth && (
+                <div className="px-1 py-0.5 text-[9px] font-bold text-violet-400 bg-violet-100 border border-violet-200 rounded-md truncate mb-0.5">
+                  {day.getDay() === 6 ? 'Sábado' : 'Domingo'}
+                </div>
+              )}
+              <div className={cn("space-y-0.5 overflow-y-auto scrollbar-hide", small ? "max-h-[28px]" : "max-h-[72px]")}>
+                {activeCourses.map(c => {
+                  const color = getCourseColor(c.color);
+                  const session = daySessions.find(s => s.courseId === c.id);
+                  const timeLabel = session
+                    ? `${session.startTime}–${session.endTime}`
+                    : c.startTime
+                      ? `${c.startTime}${c.endTime ? `–${c.endTime}` : ''}`
+                      : '';
                   return (
-                    <div key={s.id} className={cn(
+                    <div key={c.id} className={cn(
                       "px-1 py-0.5 text-[9px] font-bold rounded-md truncate border flex items-center gap-0.5",
-                      color.bg, color.text, color.border
+                      color.bg, color.text, color.border,
+                      !session && "opacity-70"
                     )}>
-                      {small ? <div className={cn("w-1 h-1 rounded-full", color.dot)} /> : <Clock className="w-2 h-2" />}
-                      {!small && `${s.startTime} ${course?.name}`}
+                      {small
+                        ? <div className={cn("w-1 h-1 rounded-full shrink-0", color.dot)} />
+                        : session
+                          ? <Clock className="w-2 h-2 shrink-0" />
+                          : <BookOpen className="w-2 h-2 shrink-0" />
+                      }
+                      {!small && (
+                        <span className="truncate">
+                          {timeLabel ? `${timeLabel} ` : ''}{c.name}
+                        </span>
+                      )}
                     </div>
                   );
                 })}
@@ -2220,100 +3361,622 @@ function Calendar({ sessions, courses, small = false }: { sessions: Session[], c
           );
         })}
       </div>
+
+      {/* Settings modal */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setShowSettings(false)}>
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Configuración del calendario</h3>
+              <button onClick={() => setShowSettings(false)} className="p-1.5 hover:bg-slate-100 rounded-full">
+                <X className="w-5 h-5 text-slate-500" />
+              </button>
+            </div>
+
+            {/* Weekends toggle */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-2xl">
+              <p className="text-sm font-bold text-slate-700">Marcar fines de semana</p>
+              <button
+                onClick={() => updateSettings({ ...calSettings, highlightWeekends: !calSettings.highlightWeekends })}
+                className={cn("w-11 h-6 rounded-full transition-colors relative", calSettings.highlightWeekends ? "bg-emerald-500" : "bg-slate-300")}
+              >
+                <span className={cn("absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform", calSettings.highlightWeekends ? "translate-x-5" : "translate-x-0.5")} />
+              </button>
+            </div>
+
+            {/* Export */}
+            <div className="space-y-2">
+              <p className="text-sm font-bold text-slate-700">Exportar calendario</p>
+              <button onClick={exportToGoogleCalendar} className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-2xl transition-colors">
+                <Download className="w-4 h-4" />
+                Descargar .ics para Google Calendar
+              </button>
+              <p className="text-[10px] text-slate-400 text-center">Google Calendar → Configuración → Importar y exportar → Importar</p>
+            </div>
+
+            {/* Holidays */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-bold text-slate-700">Días festivos</p>
+                <button onClick={() => csvInputRef.current?.click()} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors">
+                  <Download className="w-3 h-3 rotate-180" />
+                  Importar CSV
+                </button>
+                <input ref={csvInputRef} type="file" accept=".csv,.txt" className="hidden" onChange={importCSV} />
+              </div>
+              <p className="text-[10px] text-slate-400">Formato CSV: <code className="bg-slate-100 px-1 rounded">YYYY-MM-DD,Nombre festivo</code></p>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                {calSettings.holidays.length === 0 && <p className="text-xs text-slate-400 text-center py-2">Sin festivos configurados</p>}
+                {[...calSettings.holidays].sort((a, b) => a.date.localeCompare(b.date)).map(h => {
+                  const c = getCalColor(h.color);
+                  return (
+                    <div key={h.date} className={cn("flex items-center justify-between rounded-xl px-3 py-2 border", c.bg, c.border)}>
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", c.dot)} />
+                        <div>
+                          <p className={cn("text-xs font-bold", c.text)}>{h.name}</p>
+                          <p className="text-[10px] text-slate-400">{format(parseISO(h.date), 'd MMM yyyy', { locale: es })}</p>
+                        </div>
+                      </div>
+                      <button onClick={() => removeHoliday(h.date)} className="p-1 hover:bg-white/60 rounded-full">
+                        <X className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Add holiday form */}
+              <div className="space-y-2 bg-slate-50 rounded-2xl p-3">
+                <div className="flex gap-2">
+                  <input type="date" value={newHolidayDate} onChange={e => setNewHolidayDate(e.target.value)} className="flex-1 p-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-300 bg-white" />
+                  <input type="text" value={newHolidayName} onChange={e => setNewHolidayName(e.target.value)} placeholder="Nombre festivo" className="flex-[2] p-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-300 bg-white" onKeyDown={e => e.key === 'Enter' && addHoliday()} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 font-medium">Color:</span>
+                  <div className="flex gap-1.5 flex-1">
+                    {CAL_COLORS.map(c => (
+                      <button key={c.name} type="button" onClick={() => setNewHolidayColor(c.name)}
+                        className={cn("w-5 h-5 rounded-full border-2 transition-all", c.dot, newHolidayColor === c.name ? "border-slate-800 scale-125" : "border-transparent")}
+                        title={c.label} />
+                    ))}
+                  </div>
+                  <button onClick={addHoliday} className="p-1.5 bg-slate-700 hover:bg-slate-900 text-white rounded-xl transition-colors">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Vacations */}
+            <div className="space-y-3">
+              <p className="text-sm font-bold text-slate-700">Periodos de vacaciones</p>
+              <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                {(calSettings.vacations ?? []).length === 0 && <p className="text-xs text-slate-400 text-center py-2">Sin periodos configurados</p>}
+                {[...(calSettings.vacations ?? [])].sort((a, b) => a.startDate.localeCompare(b.startDate)).map(v => {
+                  const c = getCalColor(v.color);
+                  return (
+                    <div key={v.id} className={cn("flex items-center justify-between rounded-xl px-3 py-2 border", c.bg, c.border)}>
+                      <div className="flex items-center gap-2">
+                        <div className={cn("w-2.5 h-2.5 rounded-full shrink-0", c.dot)} />
+                        <div>
+                          <p className={cn("text-xs font-bold", c.text)}>{v.name}</p>
+                          <p className="text-[10px] text-slate-400">
+                            {format(parseISO(v.startDate), 'd MMM', { locale: es })} → {format(parseISO(v.endDate), 'd MMM yyyy', { locale: es })}
+                          </p>
+                        </div>
+                      </div>
+                      <button onClick={() => removeVacation(v.id)} className="p-1 hover:bg-white/60 rounded-full">
+                        <X className="w-3.5 h-3.5 text-slate-400" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Add vacation form */}
+              <div className="space-y-2 bg-slate-50 rounded-2xl p-3">
+                <input type="text" value={newVacName} onChange={e => setNewVacName(e.target.value)} placeholder="Nombre (ej: Vacaciones Navidad)" className="w-full p-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-300 bg-white" />
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-0.5">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Inicio</p>
+                    <input type="date" value={newVacStart} onChange={e => setNewVacStart(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-300 bg-white" />
+                  </div>
+                  <div className="flex-1 space-y-0.5">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Fin</p>
+                    <input type="date" value={newVacEnd} onChange={e => setNewVacEnd(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-slate-300 bg-white" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-slate-500 font-medium">Color:</span>
+                  <div className="flex gap-1.5 flex-1">
+                    {CAL_COLORS.map(c => (
+                      <button key={c.name} type="button" onClick={() => setNewVacColor(c.name)}
+                        className={cn("w-5 h-5 rounded-full border-2 transition-all", c.dot, newVacColor === c.name ? "border-slate-800 scale-125" : "border-transparent")}
+                        title={c.label} />
+                    ))}
+                  </div>
+                  <button onClick={addVacation} className="p-1.5 bg-slate-700 hover:bg-slate-900 text-white rounded-xl transition-colors">
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Settings({ settings, userId }: { settings: TeacherSettings | null, userId: string }) {
-  const [formData, setFormData] = useState<TeacherSettings>(settings || {
-    userId,
-    maxHoursPerWeek: 20,
-    availableDays: [],
-    minHourlyRate: 25,
-    preferredModality: 'any',
-    bankAccount: ''
-  });
+const AVATAR_COLORS = ['#10b981','#3b82f6','#8b5cf6','#f59e0b','#ef4444','#ec4899','#06b6d4','#84cc16'];
+const COUNTRIES = ['España','México','Argentina','Colombia','Chile','Perú','Uruguay','Venezuela','Ecuador','Bolivia','Paraguay','Otro'];
+const TIMEZONES = ['Europe/Madrid','America/Mexico_City','America/Argentina/Buenos_Aires','America/Bogota','America/Santiago','America/Lima','Atlantic/Canary','UTC'];
 
-  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+function Settings({ settings, userId, user, setUser }: { settings: TeacherSettings | null, userId: string, user: User, setUser: (u: User) => void }) {
+  const [tab, setTab] = useState<'perfil'|'seguridad'|'preferencias'|'datos'>('perfil');
+  const [work, setWork] = useState<TeacherSettings>(settings || { userId, maxHoursPerWeek: 20, availableDays: [], minHourlyRate: 25, preferredModality: 'any', bankAccount: '' });
+  const [prof, setProf] = useState({ name: user.name || '', username: user.username || '', phone: user.phone || '', address: user.address || '', birthdate: user.birthdate || '', country: user.country || 'España', timezone: user.timezone || 'Europe/Madrid', avatarColor: user.avatarColor || '#10b981', language: user.language || 'es' });
+  const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwStatus, setPwStatus] = useState<'idle'|'saving'|'ok'|'error'>('idle');
+  const [pwError, setPwError] = useState('');
+  const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'>('idle');
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+  const [showDelete, setShowDelete] = useState(false);
+  const [photo, setPhoto] = useState<string>(() => localStorage.getItem(`profilePhoto_${userId}`) || '');
+  const photoRef = React.useRef<HTMLInputElement>(null);
+  const importRef = React.useRef<HTMLInputElement>(null);
+  const [importStatus, setImportStatus] = useState<'idle'|'loading'|'ok'|'error'>('idle');
+  const [importMsg, setImportMsg] = useState('');
 
-  useEffect(() => {
-    if (settings) setFormData(settings);
-  }, [settings]);
+  useEffect(() => { if (settings) setWork(settings); }, [settings]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const b64 = ev.target?.result as string;
+      setPhoto(b64);
+      localStorage.setItem(`profilePhoto_${userId}`, b64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const removePhoto = () => {
+    setPhoto('');
+    localStorage.removeItem(`profilePhoto_${userId}`);
+    if (photoRef.current) photoRef.current.value = '';
+  };
+
+  const DAYS = ['lunes','martes','miércoles','jueves','viernes','sábado','domingo'];
+  const toggleDay = (day: string) => {
+    const days = (work.availableDays||[]).includes(day) ? (work.availableDays||[]).filter(d=>d!==day) : [...(work.availableDays||[]),day];
+    setWork({...work, availableDays: days});
+  };
+
+  const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaveStatus('saving');
-    await saveSettings(userId, formData);
+    await api.updateProfile(prof);
+    await saveSettings(userId, work);
+    setUser({...user, ...prof});
     setSaveStatus('saved');
     setTimeout(() => setSaveStatus('idle'), 3000);
   };
 
+  const changePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwForm.next !== pwForm.confirm) { setPwError('Las contraseñas no coinciden'); setPwStatus('error'); return; }
+    if (pwForm.next.length < 6) { setPwError('Mínimo 6 caracteres'); setPwStatus('error'); return; }
+    setPwStatus('saving'); setPwError('');
+    try {
+      await api.changePassword({ currentPassword: pwForm.current, newPassword: pwForm.next });
+      setPwStatus('ok'); setPwForm({ current: '', next: '', confirm: '' });
+    } catch (err: any) {
+      setPwError(err.message || 'Error al cambiar contraseña'); setPwStatus('error');
+    }
+  };
+
+  const downloadJSON = (data: object, filename: string) => {
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+  };
+
+  const exportAppBackup = () => {
+    const calSettings = localStorage.getItem('calendarSettings');
+    const backup = {
+      version: '1.0',
+      type: 'app',
+      exportedAt: new Date().toISOString(),
+      profile: { ...prof, email: user.email },
+      settings: work,
+      calendarSettings: calSettings ? JSON.parse(calSettings) : null,
+      profilePhoto: photo || null,
+    };
+    downloadJSON(backup, `backup-app-${new Date().toISOString().slice(0,10)}.json`);
+  };
+
+  const exportDataBackup = async () => {
+    try {
+      const [courses, sessions, clients] = await Promise.all([
+        api.getCourses(),
+        api.getSessions(),
+        api.getClients(),
+      ]);
+      const calSettings = localStorage.getItem('calendarSettings');
+      const backup = {
+        version: '1.0',
+        type: 'full',
+        exportedAt: new Date().toISOString(),
+        profile: { ...prof, email: user.email },
+        settings: work,
+        calendarSettings: calSettings ? JSON.parse(calSettings) : null,
+        profilePhoto: photo || null,
+        courses,
+        sessions,
+        clients,
+      };
+      downloadJSON(backup, `backup-datos-${new Date().toISOString().slice(0,10)}.json`);
+    } catch {
+      alert('Error al exportar los datos');
+    }
+  };
+
+  const importBackup = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportStatus('loading'); setImportMsg('');
+    try {
+      const text = await file.text();
+      const data = JSON.parse(text);
+      if (!data.version || !data.type) throw new Error('Archivo no válido');
+
+      // Restore calendar settings
+      if (data.calendarSettings) {
+        localStorage.setItem('calendarSettings', JSON.stringify(data.calendarSettings));
+      }
+      // Restore profile photo
+      if (data.profilePhoto) {
+        localStorage.setItem(`profilePhoto_${userId}`, data.profilePhoto);
+        setPhoto(data.profilePhoto);
+      }
+      // Restore profile & settings
+      if (data.profile) {
+        const { email: _e, ...profileData } = data.profile;
+        await api.updateProfile(profileData);
+        setUser({ ...user, ...profileData });
+        setProf(p => ({ ...p, ...profileData }));
+      }
+      if (data.settings) {
+        await saveSettings(userId, data.settings);
+        setWork(data.settings);
+      }
+
+      // Restore data (only for full backups)
+      let restored = { courses: 0, sessions: 0, clients: 0 };
+      if (data.type === 'full') {
+        // Restore clients
+        const clientIdMap: Record<string, string> = {};
+        for (const c of (data.clients || [])) {
+          const { id: oldId, userId: _u, createdAt: _ca, ...rest } = c;
+          const created = await api.createClient(rest);
+          if (oldId && created.id) clientIdMap[oldId] = created.id;
+          restored.clients++;
+        }
+        // Restore courses + build id map
+        const courseIdMap: Record<string, string> = {};
+        for (const c of (data.courses || [])) {
+          const { id: oldId, userId: _u, createdAt: _ca, ...rest } = c;
+          const created = await api.createCourse(rest);
+          if (oldId && created.id) courseIdMap[oldId] = created.id;
+          restored.courses++;
+        }
+        // Restore sessions with remapped courseId
+        for (const s of (data.sessions || [])) {
+          const { id: _id, userId: _u, createdAt: _ca, courseId, ...rest } = s;
+          const newCourseId = courseIdMap[courseId] || courseId;
+          await api.createSession({ ...rest, courseId: newCourseId });
+          restored.sessions++;
+        }
+      }
+
+      const detail = data.type === 'full'
+        ? ` Se restauraron ${restored.courses} cursos, ${restored.sessions} sesiones y ${restored.clients} clientes.`
+        : '';
+      setImportStatus('ok');
+      setImportMsg(`Copia de seguridad restaurada correctamente.${detail}`);
+      if (importRef.current) importRef.current.value = '';
+    } catch (err: any) {
+      setImportStatus('error');
+      setImportMsg(err.message || 'Error al importar el archivo');
+    }
+  };
+
+  const deleteAccount = async () => {
+    if (deleteConfirm !== 'ELIMINAR') return;
+    await api.deleteAccount();
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  const F = "w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-sm bg-white";
+  const L = "block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5";
+  const initials = (prof.name || user.email).slice(0,2).toUpperCase();
+
+  const TABS = [
+    { id: 'perfil', label: 'Mi Perfil', icon: <GraduationCap className="w-4 h-4" /> },
+    { id: 'seguridad', label: 'Seguridad', icon: <AlertTriangle className="w-4 h-4" /> },
+    { id: 'preferencias', label: 'Preferencias', icon: <SettingsIcon className="w-4 h-4" /> },
+    { id: 'datos', label: 'Mis Datos', icon: <Download className="w-4 h-4" /> },
+  ] as const;
+
+  const ComingSoon = ({ label }: { label: string }) => (
+    <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-100 rounded-2xl opacity-60 cursor-not-allowed">
+      <span className="text-sm text-slate-500 font-medium">{label}</span>
+      <span className="text-[10px] font-bold text-slate-400 bg-slate-200 px-2 py-0.5 rounded-full uppercase tracking-wider">Próximamente</span>
+    </div>
+  );
+
   return (
-    <div className="max-w-2xl bg-white border border-slate-200 rounded-3xl shadow-sm p-8">
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Horas máx. semanales</label>
-            <input 
-              type="number" 
-              value={formData.maxHoursPerWeek} 
-              onChange={e => setFormData({...formData, maxHoursPerWeek: parseInt(e.target.value)})}
-              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-2">Tarifa mínima (€/h)</label>
-            <input 
-              type="number" 
-              value={formData.minHourlyRate} 
-              onChange={e => setFormData({...formData, minHourlyRate: parseInt(e.target.value)})}
-              className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none" 
-            />
-          </div>
-        </div>
+    <div className="max-w-3xl space-y-5">
+      {/* Tab nav */}
+      <div className="flex gap-2 bg-white border border-slate-200 rounded-2xl p-1.5 shadow-sm">
+        {TABS.map(t => (
+          <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            className={cn("flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold rounded-xl transition-all",
+              tab === t.id ? "bg-slate-900 text-white shadow" : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+            )}>
+            {t.icon}<span className="hidden sm:inline">{t.label}</span>
+          </button>
+        ))}
+      </div>
 
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-4">Días disponibles</label>
-          <div className="flex flex-wrap gap-3">
-            {['lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado', 'domingo'].map(day => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => {
-                  const currentDays = formData.availableDays || [];
-                  const days = currentDays.includes(day) 
-                    ? currentDays.filter(d => d !== day)
-                    : [...currentDays, day];
-                  setFormData({...formData, availableDays: days});
-                }}
-                className={cn(
-                  "px-4 py-2 text-sm font-medium rounded-xl border transition-all",
-                  (formData.availableDays || []).includes(day) ? "bg-emerald-600 border-emerald-600 text-white shadow-md" : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+      {/* ── TAB: MI PERFIL ── */}
+      {tab === 'perfil' && (
+        <form onSubmit={saveProfile} className="space-y-5">
+          {/* Avatar */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+            <div className="flex items-center gap-5 mb-5">
+              <div className="relative group">
+                {photo ? (
+                  <img src={photo} alt="Foto de perfil" className="w-20 h-20 rounded-2xl object-cover shadow-lg" />
+                ) : (
+                  <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-white font-black text-2xl shadow-lg" style={{ backgroundColor: prof.avatarColor }}>
+                    {initials}
+                  </div>
                 )}
-              >
-                {day.charAt(0).toUpperCase() + day.slice(1)}
+                <button type="button" onClick={() => photoRef.current?.click()}
+                  className="absolute inset-0 rounded-2xl bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-bold">
+                  Cambiar
+                </button>
+                <input ref={photoRef} type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
+              </div>
+              <div>
+                <p className="font-bold text-slate-900">{prof.name || 'Sin nombre'}</p>
+                <p className="text-sm text-slate-400">{user.email}</p>
+                <div className="flex gap-2 mt-2 flex-wrap">
+                  <button type="button" onClick={() => photoRef.current?.click()}
+                    className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 underline underline-offset-2">
+                    {photo ? 'Cambiar foto' : 'Subir foto'}
+                  </button>
+                  {photo && (
+                    <button type="button" onClick={removePhoto}
+                      className="text-xs font-semibold text-red-500 hover:text-red-600 underline underline-offset-2">
+                      Eliminar foto
+                    </button>
+                  )}
+                </div>
+                {!photo && (
+                  <div className="flex gap-1.5 mt-2">
+                    {AVATAR_COLORS.map(c => (
+                      <button key={c} type="button" onClick={() => setProf({...prof, avatarColor: c})}
+                        className={cn("w-5 h-5 rounded-full border-2 transition-all", prof.avatarColor === c ? "border-slate-800 scale-125" : "border-transparent")}
+                        style={{ backgroundColor: c }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div><label className={L}>Nombre completo</label><input value={prof.name} onChange={e=>setProf({...prof,name:e.target.value})} placeholder="Tu nombre" className={F} /></div>
+              <div><label className={L}>Nombre de usuario</label><input value={prof.username} onChange={e=>setProf({...prof,username:e.target.value})} placeholder="@usuario" className={F} /></div>
+              <div><label className={L}>Teléfono</label><input value={prof.phone} onChange={e=>setProf({...prof,phone:e.target.value})} placeholder="+34 600 000 000" className={F} /></div>
+              <div><label className={L}>Fecha de nacimiento</label><input type="date" value={prof.birthdate} onChange={e=>setProf({...prof,birthdate:e.target.value})} className={F} /></div>
+              <div><label className={L}>País</label>
+                <select value={prof.country} onChange={e=>setProf({...prof,country:e.target.value})} className={F}>
+                  {COUNTRIES.map(c=><option key={c}>{c}</option>)}
+                </select>
+              </div>
+              <div><label className={L}>Idioma</label>
+                <select value={prof.language} onChange={e=>setProf({...prof,language:e.target.value})} className={F}>
+                  <option value="es">Español</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+              <div className="md:col-span-2"><label className={L}>Dirección</label><input value={prof.address} onChange={e=>setProf({...prof,address:e.target.value})} placeholder="Calle, ciudad, CP" className={F} /></div>
+              <div><label className={L}>Zona horaria</label>
+                <select value={prof.timezone} onChange={e=>setProf({...prof,timezone:e.target.value})} className={F}>
+                  {TIMEZONES.map(t=><option key={t}>{t}</option>)}
+                </select>
+              </div>
+              <div><label className={L}>IBAN</label><input value={work.bankAccount||''} onChange={e=>setWork({...work,bankAccount:e.target.value})} placeholder="ES00 0000 ..." className={F} /></div>
+            </div>
+
+          </div>
+
+          <button type="submit" className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+            {saveStatus==='saving'?'Guardando...':saveStatus==='saved'?<><CheckCircle2 className="w-5 h-5"/>Guardado</>:'Guardar Perfil'}
+          </button>
+        </form>
+      )}
+
+      {/* ── TAB: SEGURIDAD ── */}
+      {tab === 'seguridad' && (
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-900">Cambiar contraseña</h3>
+            <form onSubmit={changePassword} className="space-y-3">
+              <div><label className={L}>Contraseña actual</label><input type="password" value={pwForm.current} onChange={e=>setPwForm({...pwForm,current:e.target.value})} className={F} /></div>
+              <div><label className={L}>Nueva contraseña</label><input type="password" value={pwForm.next} onChange={e=>setPwForm({...pwForm,next:e.target.value})} placeholder="Mínimo 6 caracteres" className={F} /></div>
+              <div><label className={L}>Confirmar nueva contraseña</label><input type="password" value={pwForm.confirm} onChange={e=>setPwForm({...pwForm,confirm:e.target.value})} className={F} /></div>
+              {pwError && <p className="text-sm text-red-600 font-medium">{pwError}</p>}
+              <button type="submit" className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-2">
+                {pwStatus==='saving'?'Cambiando...':pwStatus==='ok'?<><CheckCircle2 className="w-4 h-4"/>Contraseña cambiada</>:'Cambiar contraseña'}
               </button>
-            ))}
+            </form>
+          </div>
+
+          {/* Último acceso */}
+          {user.lastLogin && (
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+              <h3 className="font-bold text-slate-900 mb-3">Último acceso</h3>
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl">
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                <div>
+                  <p className="text-sm font-medium text-slate-700">{new Date(user.lastLogin).toLocaleString('es-ES', { dateStyle: 'full', timeStyle: 'short' })}</p>
+                  {user.lastLoginIp && <p className="text-xs text-slate-400">IP: {user.lastLoginIp}</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Próximamente */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <h3 className="font-bold text-slate-900 mb-1">Más seguridad</h3>
+            <ComingSoon label="Verificación en dos pasos (2FA)" />
+            <ComingSoon label="Dispositivos conectados" />
+            <ComingSoon label="Historial completo de accesos" />
+            <ComingSoon label="Cierre de todas las sesiones" />
           </div>
         </div>
+      )}
 
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-2">Preferencia de modalidad</label>
-          <select 
-            value={formData.preferredModality}
-            onChange={e => setFormData({...formData, preferredModality: e.target.value as any})}
-            className="w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-          >
-            <option value="any">Cualquiera</option>
-            <option value="presencial">Presencial</option>
-            <option value="teleformación">Teleformación</option>
-            <option value="híbrido">Híbrido</option>
-          </select>
+      {/* ── TAB: PREFERENCIAS ── */}
+      {tab === 'preferencias' && (
+        <div className="space-y-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="font-bold text-slate-900">Interfaz</h3>
+            <div className="grid grid-cols-2 gap-3">
+              {['es','en'].map(lang => (
+                <button key={lang} type="button" onClick={()=>setProf({...prof,language:lang})}
+                  className={cn("py-3 font-bold rounded-xl border transition-all",
+                    prof.language===lang?"bg-slate-900 text-white border-slate-900":"bg-white text-slate-500 border-slate-200 hover:border-slate-400"
+                  )}>
+                  {lang==='es'?'🇪🇸 Español':'🇬🇧 English'}
+                </button>
+              ))}
+            </div>
+            <button onClick={async()=>{await api.updateProfile(prof);setUser({...user,...prof});}} type="button"
+              className="w-full py-3 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-4 h-4" />Guardar preferencias
+            </button>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <h3 className="font-bold text-slate-900 mb-1">Más preferencias</h3>
+            <ComingSoon label="Tema oscuro / claro" />
+            <ComingSoon label="Notificaciones por email" />
+            <ComingSoon label="Notificaciones push" />
+            <ComingSoon label="Privacidad del perfil" />
+            <ComingSoon label="Control de datos compartidos" />
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <h3 className="font-bold text-slate-900 mb-1">Integraciones</h3>
+            <ComingSoon label="Conectar Google Calendar (OAuth)" />
+            <ComingSoon label="Conectar cuenta de Apple" />
+            <ComingSoon label="API personal / tokens" />
+            <ComingSoon label="Suscripciones y plan" />
+          </div>
         </div>
-        <button type="submit" className="w-full py-4 bg-slate-900 text-white font-bold rounded-2xl hover:bg-slate-800 transition-all shadow-lg flex items-center justify-center gap-2">
-          {saveStatus === 'saving' ? 'Guardando...' : saveStatus === 'saved' ? <><CheckCircle2 className="w-5 h-5" /> Guardado</> : 'Guardar Configuración'}
-        </button>
-      </form>
+      )}
+
+      {/* ── TAB: MIS DATOS ── */}
+      {tab === 'datos' && (
+        <div className="space-y-4">
+
+          {/* Copia de seguridad de la app */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+                <SettingsIcon className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900">Copia de seguridad de la app</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Exporta tu perfil, configuración, festivos y vacaciones del calendario. No incluye cursos ni clientes.</p>
+              </div>
+            </div>
+            <button onClick={exportAppBackup} type="button"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl transition-all">
+              <Download className="w-4 h-4" /> Descargar backup de configuración (.json)
+            </button>
+          </div>
+
+          {/* Copia de seguridad de los datos */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center flex-shrink-0">
+                <Download className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900">Copia de seguridad completa</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Exporta todos tus datos: cursos, sesiones, clientes, perfil y configuración. Úsala para migrar o restaurar.</p>
+              </div>
+            </div>
+            <button onClick={exportDataBackup} type="button"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all">
+              <Download className="w-4 h-4" /> Descargar backup completo (.json)
+            </button>
+          </div>
+
+          {/* Importar copia de seguridad */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900">Importar copia de seguridad</h3>
+                <p className="text-sm text-slate-500 mt-0.5">Restaura desde un archivo de backup exportado anteriormente. Los datos existentes <strong>no se borran</strong>; se añaden los del backup.</p>
+              </div>
+            </div>
+            <input ref={importRef} type="file" accept=".json,application/json" onChange={importBackup} className="hidden" />
+            <button onClick={() => importRef.current?.click()} type="button"
+              disabled={importStatus === 'loading'}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold rounded-xl transition-all">
+              {importStatus === 'loading' ? 'Restaurando...' : <><CheckCircle2 className="w-4 h-4" /> Seleccionar archivo de backup</>}
+            </button>
+            {importMsg && (
+              <div className={cn("p-3 rounded-xl text-sm font-medium", importStatus === 'ok' ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700")}>
+                {importMsg}
+              </div>
+            )}
+          </div>
+
+          {/* Eliminar cuenta */}
+          <div className="bg-white border border-red-100 rounded-3xl p-6 shadow-sm space-y-4">
+            <h3 className="font-bold text-red-700">Eliminar cuenta</h3>
+            <p className="text-sm text-slate-500">Esta acción es <strong>irreversible</strong>. Se eliminarán todos tus datos, cursos, sesiones y facturas.</p>
+            {!showDelete ? (
+              <button onClick={()=>setShowDelete(true)} type="button" className="w-full py-3 border-2 border-red-300 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all">
+                Quiero eliminar mi cuenta
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm font-bold text-slate-700">Escribe <code className="bg-slate-100 px-1 rounded text-red-600">ELIMINAR</code> para confirmar:</p>
+                <input value={deleteConfirm} onChange={e=>setDeleteConfirm(e.target.value)} placeholder="ELIMINAR" className="w-full p-3 border-2 border-red-200 rounded-xl outline-none focus:border-red-500 text-sm" />
+                <div className="flex gap-3">
+                  <button onClick={()=>{setShowDelete(false);setDeleteConfirm('');}} type="button" className="flex-1 py-3 border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all">Cancelar</button>
+                  <button onClick={deleteAccount} type="button" disabled={deleteConfirm!=='ELIMINAR'}
+                    className="flex-1 py-3 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed">
+                    Eliminar definitivamente
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2328,6 +3991,8 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
     endDate: '',
     totalHours: 0,
     schedule: '',
+    startTime: '',
+    endTime: '',
     pricingType: 'hourly',
     price: 0,
     status: 'pendiente',
@@ -2338,7 +4003,9 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
     if (course) {
       setFormData({
         ...course,
-        color: course.color || COURSE_COLORS[0].name
+        color: course.color || COURSE_COLORS[0].name,
+        startTime: course.startTime || '',
+        endTime: course.endTime || '',
       });
     } else {
       setFormData({
@@ -2350,6 +4017,8 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
         endDate: '',
         totalHours: 0,
         schedule: '',
+        startTime: '',
+        endTime: '',
         pricingType: 'hourly',
         price: 0,
         status: 'pendiente',
@@ -2428,11 +4097,29 @@ function CourseFormView({ userId, course, onSave, onCancel }: { userId: string, 
             />
           </div>
           <div className="space-y-1">
-            <label className="text-xs font-bold text-slate-400 uppercase">Horario</label>
+            <label className="text-xs font-bold text-slate-400 uppercase">Días de clase</label>
             <input
               value={formData.schedule}
               onChange={e => setFormData({...formData, schedule: e.target.value})}
-              placeholder="Ej: Lunes y Miércoles 18:00-20:00"
+              placeholder="Ej: Lunes y Miércoles"
+              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase">Hora entrada</label>
+            <input
+              type="time"
+              value={formData.startTime}
+              onChange={e => setFormData({...formData, startTime: e.target.value})}
+              className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-slate-400 uppercase">Hora salida</label>
+            <input
+              type="time"
+              value={formData.endTime}
+              onChange={e => setFormData({...formData, endTime: e.target.value})}
               className="w-full p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>

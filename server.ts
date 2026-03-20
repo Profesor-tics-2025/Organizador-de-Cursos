@@ -13,7 +13,8 @@ async function startServer() {
   const app = express();
   // NOTA: El puerto 3000 es obligatorio en el entorno de AI Studio.
   // En tu VPS puedes cambiar la variable de entorno PORT=3001.
-  const PORT = 3000;
+  const PORT = process.env.PORT ? Number(process.env.PORT) : 3001;
+  const HOST = process.env.HOST || '0.0.0.0';
 
   // Middlewares
   app.use(cors());
@@ -45,8 +46,8 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Servidor Express corriendo en http://0.0.0.0:${PORT}`);
+  app.listen(PORT, HOST, () => {
+    console.log(`🚀 Servidor Express corriendo en http://${HOST}:${PORT}`);
     console.log(`💡 Nota: En AI Studio, la app se sirve en el puerto 3000.`);
   });
 }

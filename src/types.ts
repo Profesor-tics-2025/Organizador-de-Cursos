@@ -13,12 +13,34 @@ export interface Course {
   endDate: string;
   totalHours: number;
   schedule: string;
+  startTime?: string;
+  endTime?: string;
   pricingType: PricingType;
   price: number;
   status: CourseStatus;
   color?: string;
   userId: string;
   createdAt: string;
+}
+
+export interface Holiday {
+  date: string;
+  name: string;
+  color?: string;
+}
+
+export interface Vacation {
+  id: string;
+  startDate: string;
+  endDate: string;
+  name: string;
+  color: string;
+}
+
+export interface CalendarSettings {
+  highlightWeekends: boolean;
+  holidays: Holiday[];
+  vacations: Vacation[];
 }
 
 export interface Session {
@@ -55,6 +77,17 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  username?: string;
+  phone?: string;
+  address?: string;
+  birthdate?: string;
+  country?: string;
+  timezone?: string;
+  avatarColor?: string;
+  language?: string;
+  lastLogin?: string;
+  lastLoginIp?: string;
+  createdAt?: string;
 }
 
 export interface Client {
